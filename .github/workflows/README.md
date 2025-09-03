@@ -55,8 +55,8 @@
 
 | Secret名称 | 描述 | 获取方式 |
 |-----------|------|----------|
-| `DOCKER_HUB_USERNAME` | Docker Hub用户名 | 您的Docker Hub账号 |
-| `DOCKER_HUB_ACCESS_TOKEN` | Docker Hub访问令牌 | [创建访问令牌](https://hub.docker.com/settings/security) |
+| `DOCKER_USERNAME` | Docker Hub用户名 | 您的Docker Hub账号 |
+| `DOCKER_PASSWORD` | Docker Hub访问令牌 | [创建访问令牌](https://hub.docker.com/settings/security) |
 
 ### Docker Hub访问令牌创建步骤
 
@@ -98,13 +98,13 @@
 
 ```bash
 # 最新版本
-docker pull your-username/xianyu-auto-reply:latest
+docker pull <your-dockerhub-username>/xianyu-auto-reply:latest
 
 # 特定版本
-docker pull your-username/xianyu-auto-reply:v1.0.0
+docker pull <your-dockerhub-username>/xianyu-auto-reply:v1.0.0
 
 # 开发版本
-docker pull your-username/xianyu-auto-reply:dev
+docker pull <your-dockerhub-username>/xianyu-auto-reply:dev
 ```
 
 ### 支持的架构
@@ -116,7 +116,7 @@ docker pull your-username/xianyu-auto-reply:dev
 
 ```bash
 # 下载docker-compose.yml
-wget https://raw.githubusercontent.com/your-username/xianyu-auto-reply/main/docker-compose.yml
+wget https://raw.githubusercontent.com/<your-github-username>/xianyu-auto-reply/main/docker-compose.yml
 
 # 启动服务
 docker-compose up -d
@@ -129,7 +129,7 @@ docker-compose up -d
 在README.md中添加状态徽章：
 
 ```markdown
-[![Docker Build](https://github.com/your-username/xianyu-auto-reply/actions/workflows/docker-build-and-push.yml/badge.svg)](https://github.com/your-username/xianyu-auto-reply/actions/workflows/docker-build-and-push.yml)
+[![Docker Build](https://github.com/<your-github-username>/xianyu-auto-reply/actions/workflows/docker-build-and-push.yml/badge.svg)](https://github.com/<your-github-username>/xianyu-auto-reply/actions/workflows/docker-build-and-push.yml)
 ```
 
 ### 构建日志
@@ -147,7 +147,7 @@ docker-compose up -d
 ```yaml
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: your-username/your-image-name  # 修改这里
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/xianyu-auto-reply  # 使用Secret动态配置
 ```
 
 ### 添加新的触发分支
@@ -177,7 +177,7 @@ on:
 ### 常见问题
 
 1. **Docker Hub推送失败**
-   - 检查 `DOCKER_HUB_USERNAME` 和 `DOCKER_HUB_ACCESS_TOKEN` 是否正确配置
+   - 检查 `DOCKER_USERNAME` 和 `DOCKER_PASSWORD` 是否正确配置
    - 确认访问令牌有足够的权限
 
 2. **多架构构建失败**
