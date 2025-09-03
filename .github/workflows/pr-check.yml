@@ -1,0 +1,204 @@
+name: 🔍 Pull Request Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # 基础检查
+  basic-checks:
+    name: 📋 Basic Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort safety bandit pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: 🎨 Check code formatting
+        run: |
+          echo "::group::Black formatting check"
+          black --check --diff . || echo "::warning::Code formatting issues found. Run 'black .' to fix."
+          echo "::endgroup::"
+          
+          echo "::group::Import sorting check"
+          isort --check-only --diff . || echo "::warning::Import sorting issues found. Run 'isort .' to fix."
+          echo "::endgroup::"
+
+      - name: 🔍 Lint with flake8
+        run: |
+          echo "::group::Flake8 linting"
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          echo "::endgroup::"
+
+      - name: 🛡️ Security analysis
+        run: |
+          echo "::group::Bandit security check"
+          bandit -r . -f json -o bandit-report.json || echo "::warning::Security issues found"
+          echo "::endgroup::"
+          
+          echo "::group::Safety dependency check"
+          safety check || echo "::warning::Vulnerable dependencies found"
+          echo "::endgroup::"
+
+      - name: 📊 Code quality with pylint
+        run: |
+          echo "::group::Pylint analysis"
+          find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | head -10 | xargs pylint --exit-zero --score=yes
+          echo "::endgroup::"
+        continue-on-error: true
+
+  # Docker构建测试
+  docker-build-test:
+    name: 🐳 Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏗️ Test Docker build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: test:latest
+
+      - name: 🧪 Test Docker image
+        run: |
+          echo "::group::Docker image inspection"
+          docker images test:latest
+          docker history test:latest
+          echo "::endgroup::"
+
+  # 文件变更分析
+  changes-analysis:
+    name: 📈 Changes Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📊 Analyze changes
+        run: |
+          echo "::group::Changed files"
+          git diff --name-only origin/${{ github.base_ref }}..HEAD
+          echo "::endgroup::"
+          
+          echo "::group::Lines changed"
+          git diff --stat origin/${{ github.base_ref }}..HEAD
+          echo "::endgroup::"
+          
+          echo "::group::Python files changed"
+          git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E '\.(py)$' || echo "No Python files changed"
+          echo "::endgroup::"
+          
+          echo "::group::Docker files changed"
+          git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E '(Dockerfile|docker-compose|\.dockerignore)' || echo "No Docker files changed"
+          echo "::endgroup::"
+
+      - name: 🔍 Check for sensitive files
+        run: |
+          echo "::group::Sensitive files check"
+          SENSITIVE_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E '\.(env|key|pem|p12|pfx|crt|cer|der)$' || true)
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "::error::Sensitive files detected in PR:"
+            echo "$SENSITIVE_FILES"
+            exit 1
+          else
+            echo "✅ No sensitive files detected"
+          fi
+          echo "::endgroup::"
+
+  # 依赖检查
+  dependency-check:
+    name: 📦 Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📋 Check requirements.txt
+        run: |
+          echo "::group::Requirements validation"
+          if [ -f requirements.txt ]; then
+            echo "✅ requirements.txt found"
+            echo "📦 Dependencies count: $(wc -l < requirements.txt)"
+            echo "🔍 Checking for version pinning..."
+            UNPINNED=$(grep -v '^#' requirements.txt | grep -v '^$' | grep -v '==' | grep -v '>=' | grep -v '<=' | grep -v '~=' | grep -v '!=' || true)
+            if [ -n "$UNPINNED" ]; then
+              echo "::warning::Unpinned dependencies found:"
+              echo "$UNPINNED"
+            else
+              echo "✅ All dependencies are properly pinned"
+            fi
+          else
+            echo "::error::requirements.txt not found"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+      - name: 🔒 Security vulnerability check
+        run: |
+          pip install safety
+          echo "::group::Safety check"
+          safety check -r requirements.txt || echo "::warning::Vulnerabilities found in dependencies"
+          echo "::endgroup::"
+
+  # PR信息汇总
+  pr-summary:
+    name: 📝 PR Summary
+    runs-on: ubuntu-latest
+    needs: [basic-checks, docker-build-test, changes-analysis, dependency-check]
+    if: always()
+    
+    steps:
+      - name: 📊 Generate PR summary
+        run: |
+          echo "## 🔍 Pull Request Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Basic Checks | ${{ needs.basic-checks.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Build | ${{ needs.docker-build-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Changes Analysis | ${{ needs.changes-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Check | ${{ needs.dependency-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Review the check results above" >> $GITHUB_STEP_SUMMARY
+          echo "- Fix any failing checks before merging" >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure all required approvals are obtained" >> $GITHUB_STEP_SUMMARY

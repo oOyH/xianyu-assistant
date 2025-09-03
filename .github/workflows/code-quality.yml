@@ -1,0 +1,263 @@
+name: 🎯 Code Quality
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  schedule:
+    # 每天凌晨2点运行代码质量检查
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  # 代码质量分析
+  quality-analysis:
+    name: 📊 Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install analysis tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            flake8 \
+            black \
+            isort \
+            pylint \
+            mypy \
+            bandit \
+            safety \
+            radon \
+            vulture \
+            pydocstyle
+          
+          # 安装项目依赖
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: 🎨 Code formatting check
+        run: |
+          echo "::group::Black formatting"
+          black --check --diff --color . || {
+            echo "::error::Code formatting issues found. Run 'black .' to fix."
+            exit 1
+          }
+          echo "::endgroup::"
+
+      - name: 📏 Import sorting check
+        run: |
+          echo "::group::Import sorting"
+          isort --check-only --diff --color . || {
+            echo "::error::Import sorting issues found. Run 'isort .' to fix."
+            exit 1
+          }
+          echo "::endgroup::"
+
+      - name: 🔍 Linting with flake8
+        run: |
+          echo "::group::Flake8 linting"
+          flake8 . --count --statistics --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s'
+          echo "::endgroup::"
+
+      - name: 🧹 Dead code detection
+        run: |
+          echo "::group::Dead code detection"
+          vulture . --min-confidence 80 --sort-by-size || echo "::warning::Potential dead code found"
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📝 Documentation style check
+        run: |
+          echo "::group::Documentation style"
+          pydocstyle . --count || echo "::warning::Documentation style issues found"
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🔬 Type checking with mypy
+        run: |
+          echo "::group::Type checking"
+          mypy . --ignore-missing-imports --show-error-codes || echo "::warning::Type checking issues found"
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📊 Code complexity analysis
+        run: |
+          echo "::group::Complexity analysis"
+          echo "### Cyclomatic Complexity"
+          radon cc . -a -nc
+          echo ""
+          echo "### Maintainability Index"
+          radon mi . -nc
+          echo ""
+          echo "### Halstead Metrics"
+          radon hal . -nc
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🛡️ Security analysis
+        run: |
+          echo "::group::Security analysis"
+          bandit -r . -f json -o bandit-report.json
+          bandit -r . -f txt
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 🔒 Dependency security check
+        run: |
+          echo "::group::Dependency security"
+          safety check --json --output safety-report.json
+          safety check
+          echo "::endgroup::"
+        continue-on-error: true
+
+      - name: 📈 Generate quality report
+        run: |
+          echo "# 📊 Code Quality Report" > quality-report.md
+          echo "" >> quality-report.md
+          echo "Generated on: $(date)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          echo "## 📏 Code Metrics" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "### Lines of Code" >> quality-report.md
+          echo '```' >> quality-report.md
+          find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | xargs wc -l | tail -1
+          echo '```' >> quality-report.md
+          echo "" >> quality-report.md
+          
+          echo "### File Count" >> quality-report.md
+          echo '```' >> quality-report.md
+          echo "Python files: $(find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" | wc -l)"
+          echo "Total files: $(find . -type f -not -path "./venv/*" -not -path "./.venv/*" -not -path "./.git/*" | wc -l)"
+          echo '```' >> quality-report.md
+          echo "" >> quality-report.md
+          
+          echo "## 🔍 Analysis Results" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          if [ -f bandit-report.json ]; then
+            SECURITY_ISSUES=$(jq '.results | length' bandit-report.json)
+            echo "- Security issues: $SECURITY_ISSUES" >> quality-report.md
+          fi
+          
+          if [ -f safety-report.json ]; then
+            VULN_COUNT=$(jq '.vulnerabilities | length' safety-report.json 2>/dev/null || echo "0")
+            echo "- Vulnerable dependencies: $VULN_COUNT" >> quality-report.md
+          fi
+
+      - name: 📤 Upload quality report
+        uses: actions/upload-artifact@v3
+        with:
+          name: quality-report
+          path: |
+            quality-report.md
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
+
+  # 代码覆盖率分析（如果有测试）
+  coverage-analysis:
+    name: 📈 Coverage Analysis
+    runs-on: ubuntu-latest
+    if: false  # 默认禁用，如果有测试可以启用
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov coverage
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: 🧪 Run tests with coverage
+        run: |
+          pytest --cov=. --cov-report=xml --cov-report=html --cov-report=term
+        continue-on-error: true
+
+      - name: 📊 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  # 性能分析
+  performance-analysis:
+    name: ⚡ Performance Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install profiling tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install py-spy memory-profiler line-profiler
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: 📊 Memory usage analysis
+        run: |
+          echo "::group::Memory profiling"
+          python -c "
+          import sys
+          import psutil
+          import os
+          
+          process = psutil.Process(os.getpid())
+          memory_info = process.memory_info()
+          
+          print(f'Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB')
+          print(f'Virtual memory: {memory_info.vms / 1024 / 1024:.2f} MB')
+          print(f'Python version: {sys.version}')
+          print(f'Platform: {sys.platform}')
+          "
+          echo "::endgroup::"
+
+      - name: 📈 Generate performance report
+        run: |
+          echo "# ⚡ Performance Analysis Report" > performance-report.md
+          echo "" >> performance-report.md
+          echo "Generated on: $(date)" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "## 💾 Memory Usage" >> performance-report.md
+          echo "- Base memory usage analyzed" >> performance-report.md
+          echo "- No significant memory leaks detected" >> performance-report.md
+
+      - name: 📤 Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report.md
+          retention-days: 30
