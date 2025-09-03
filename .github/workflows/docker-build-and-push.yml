@@ -174,6 +174,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
       - name: 🔍 Debug build info
+        id: version-info
         run: |
           echo "Build metadata:"
           echo "- Version: ${{ steps.meta.outputs.version }}"
@@ -181,6 +182,22 @@ jobs:
           echo "- Labels: ${{ steps.meta.outputs.labels }}"
           echo "- GitHub ref: ${{ github.ref }}"
           echo "- GitHub ref name: ${{ github.ref_name }}"
+
+          # 确定最终使用的版本号
+          if [ -n "${{ steps.meta.outputs.version }}" ]; then
+            FINAL_VERSION="${{ steps.meta.outputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            FINAL_VERSION="${{ github.ref_name }}"
+          elif [[ "${{ github.ref }}" == refs/heads/main ]] || [[ "${{ github.ref }}" == refs/heads/master ]]; then
+            FINAL_VERSION="latest"
+          elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
+            FINAL_VERSION="dev"
+          else
+            FINAL_VERSION="${{ github.ref_name }}-${{ github.sha }}"
+          fi
+
+          echo "Final version to use: $FINAL_VERSION"
+          echo "final_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
 
       - name: 🔑 Log in to Docker Hub
         if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false')
@@ -209,7 +226,7 @@ jobs:
           build-args: |
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VCS_REF=${{ github.sha }}
-            VERSION=${{ steps.meta.outputs.version }}
+            VERSION=${{ steps.version-info.outputs.final_version }}
           provenance: false
           sbom: false
 

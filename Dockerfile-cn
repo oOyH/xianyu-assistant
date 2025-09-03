@@ -95,7 +95,9 @@ RUN if [ -n "$VERSION" ]; then \
         echo "Updated version.txt to: $VERSION"; \
     else \
         echo "No VERSION provided, keeping default version"; \
-    fi
+    fi && \
+    echo "Current version.txt content:" && \
+    cat /app/static/version.txt
 
 # 安装Playwright浏览器（必须在复制项目文件之后）
 RUN playwright install chromium && \
