@@ -83,6 +83,19 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # 复制项目文件
 COPY . .
 
+# 接收构建参数并更新版本文件
+ARG VERSION
+ARG BUILD_DATE
+ARG VCS_REF
+
+# 如果提供了VERSION参数，更新version.txt文件
+RUN if [ -n "$VERSION" ]; then \
+        echo "$VERSION" > /app/static/version.txt; \
+        echo "Updated version.txt to: $VERSION"; \
+    else \
+        echo "No VERSION provided, keeping default version"; \
+    fi
+
 # 安装Playwright浏览器（必须在复制项目文件之后）
 RUN playwright install chromium && \
     playwright install-deps chromium

@@ -8,16 +8,31 @@ on:
       - develop
     tags:
       - 'v*'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   workflow_dispatch:
     inputs:
       push_to_registry:
         description: 'Push to Docker Hub'
         required: false
         default: 'true'
+        type: boolean
+      skip_quality_check:
+        description: 'Skip code quality check'
+        required: false
+        default: 'false'
         type: boolean
 
 env:
@@ -29,6 +44,7 @@ jobs:
   code-quality:
     name: 🔍 Code Quality Check
     runs-on: ubuntu-latest
+    if: github.event.inputs.skip_quality_check != 'true'
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -45,35 +61,90 @@ jobs:
           pip install flake8 black isort safety bandit
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+      - name: 📊 Generate quality report
+        id: quality-report
+        run: |
+          echo "## 📊 Code Quality Report" > quality-summary.md
+          echo "Generated at: $(date)" >> quality-summary.md
+          echo "" >> quality-summary.md
+
       - name: 🎨 Check code formatting with Black
-        run: black --check --diff .
+        run: |
+          echo "### 🎨 Code Formatting" >> quality-summary.md
+          if black --check --diff .; then
+            echo "✅ Code formatting is correct" >> quality-summary.md
+          else
+            echo "❌ Code formatting issues found" >> quality-summary.md
+          fi
+          echo "" >> quality-summary.md
         continue-on-error: true
 
       - name: 📏 Check import sorting with isort
-        run: isort --check-only --diff .
+        run: |
+          echo "### 📏 Import Sorting" >> quality-summary.md
+          if isort --check-only --diff .; then
+            echo "✅ Import sorting is correct" >> quality-summary.md
+          else
+            echo "❌ Import sorting issues found" >> quality-summary.md
+          fi
+          echo "" >> quality-summary.md
         continue-on-error: true
 
       - name: 🔍 Lint with flake8
         run: |
+          echo "### 🔍 Code Linting" >> quality-summary.md
           # stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          FLAKE8_RESULT=$(flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics)
+          if [ -z "$FLAKE8_RESULT" ]; then
+            echo "✅ No linting issues found" >> quality-summary.md
+          else
+            echo "⚠️ Linting issues found" >> quality-summary.md
+          fi
+          echo "" >> quality-summary.md
         continue-on-error: true
 
       - name: 🛡️ Security check with bandit
-        run: bandit -r . -f json -o bandit-report.json
+        run: |
+          echo "### 🛡️ Security Analysis" >> quality-summary.md
+          if bandit -r . -f json -o bandit-report.json; then
+            echo "✅ No security issues found" >> quality-summary.md
+          else
+            ISSUES=$(jq '.results | length' bandit-report.json 2>/dev/null || echo "0")
+            echo "⚠️ $ISSUES security issues found" >> quality-summary.md
+          fi
+          echo "" >> quality-summary.md
         continue-on-error: true
 
       - name: 🔒 Check dependencies for security vulnerabilities
-        run: safety check --json --output safety-report.json
+        run: |
+          echo "### 🔒 Dependency Security" >> quality-summary.md
+          if safety check --json --output safety-report.json; then
+            echo "✅ No vulnerable dependencies found" >> quality-summary.md
+          else
+            VULNS=$(jq '.vulnerabilities | length' safety-report.json 2>/dev/null || echo "0")
+            echo "⚠️ $VULNS vulnerable dependencies found" >> quality-summary.md
+          fi
+          echo "" >> quality-summary.md
         continue-on-error: true
+
+      - name: 📤 Upload quality artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-reports
+          path: |
+            quality-summary.md
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
 
   # Docker构建和推送
   docker-build-push:
     name: 🐳 Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: code-quality
+    # 移除依赖，允许并行执行
     if: always()
     
     steps:
@@ -89,8 +160,6 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
           labels: |
@@ -104,6 +173,15 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64
 
+      - name: 🔍 Debug build info
+        run: |
+          echo "Build metadata:"
+          echo "- Version: ${{ steps.meta.outputs.version }}"
+          echo "- Tags: ${{ steps.meta.outputs.tags }}"
+          echo "- Labels: ${{ steps.meta.outputs.labels }}"
+          echo "- GitHub ref: ${{ github.ref }}"
+          echo "- GitHub ref name: ${{ github.ref_name }}"
+
       - name: 🔑 Log in to Docker Hub
         if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false')
         uses: docker/login-action@v3
@@ -113,6 +191,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: 🏗️ Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -121,12 +200,32 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && github.event.inputs.push_to_registry != 'false' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           build-args: |
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VCS_REF=${{ github.sha }}
-            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            VERSION=${{ steps.meta.outputs.version }}
+          provenance: false
+          sbom: false
+
+      - name: 📊 Build summary
+        if: always()
+        run: |
+          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "- **Push**: ${{ github.event_name != 'pull_request' && github.event.inputs.push_to_registry != 'false' }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            echo "- **Status**: ✅ Build successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status**: ❌ Build failed" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: 🔍 Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request'
@@ -139,7 +238,7 @@ jobs:
 
       - name: 📊 Upload Trivy scan results to GitHub Security tab
         if: github.event_name != 'pull_request'
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
         continue-on-error: true
@@ -148,42 +247,67 @@ jobs:
   notify:
     name: 📢 Notify Release
     runs-on: ubuntu-latest
-    needs: docker-build-push
+    needs: [docker-build-push, code-quality]
     if: startsWith(github.ref, 'refs/tags/v') && success()
-    
+
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📋 Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个标签
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "## 📋 更新内容" > changelog.md
+            echo "" >> changelog.md
+            git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD >> changelog.md
+          else
+            echo "## 📋 更新内容" > changelog.md
+            echo "首次发布" >> changelog.md
+          fi
 
       - name: 🎉 Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          name: 🚀 闲鱼自动回复系统 ${{ github.ref_name }}
           body: |
             ## 🚀 闲鱼自动回复系统 ${{ github.ref_name }}
-            
+
             ### 📦 Docker镜像
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ```
-            
+
             ### 🏗️ 支持架构
-            - AMD64 (x86_64)
-            - ARM64 (aarch64)
-            
-            ### 📋 更新内容
-            请查看提交历史了解详细更新内容。
-            
-            ### 🔧 快速部署
+            - ✅ AMD64 (x86_64)
+            - ✅ ARM64 (aarch64)
+
+            ###  快速部署
             ```bash
-            # 下载配置文件
-            wget https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docker-compose.yml
-            
-            # 启动服务
+            # 使用 Docker Compose
+            curl -O https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docker-compose.yml
             docker-compose up -d
+
+            # 或直接运行
+            docker run -d --name xianyu-auto-reply \
+              -p 8000:8000 \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
             ```
+
+            ### 📊 构建信息
+            - **构建时间**: ${{ github.run_id }}
+            - **提交**: ${{ github.sha }}
+            - **分支**: ${{ github.ref_name }}
+
+            $(cat changelog.md)
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
