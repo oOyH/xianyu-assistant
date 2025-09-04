@@ -377,30 +377,238 @@
   transition: all 0.2s ease;
 }
 
-/* 响应式调整 */
-@media (max-width: 768px) {
+/* ================================
+   关键词管理响应式优化
+   ================================ */
+
+/* 超小屏设备 (xs: 0-575px) */
+@media (max-width: 575.98px) {
+  /* 账号选择器优化 */
+  .account-selector {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .selector-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+
+  .selector-icon {
+    align-self: center;
+  }
+
+  .selector-title {
+    font-size: 1.25rem;
+  }
+
+  .selector-subtitle {
+    font-size: 0.875rem;
+  }
+
+  /* 关键词输入区域优化 */
+  .keyword-input-area {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
   .keyword-input-group {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
+  }
+
+  .input-field {
+    width: 100%;
+  }
+
+  .input-field label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .input-field input,
+  .input-field select {
+    width: 100%;
+    font-size: 16px; /* 防止iOS缩放 */
+    padding: 0.75rem;
+    min-height: 48px;
+    border-radius: 0.75rem;
+  }
+
+  .add-btn {
+    width: 100%;
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    font-size: 16px;
+    min-height: 48px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  /* 关键词列表优化 */
+  .keywords-list {
+    padding: 1rem;
+  }
+
+  .keyword-item {
+    margin-bottom: 1rem;
+    border-radius: 1rem;
   }
 
   .keyword-item-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .keyword-info {
+    width: 100%;
+  }
+
+  .keyword-text {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .keyword-meta {
+    font-size: 0.875rem;
+    color: var(--text-color-muted);
+  }
+
+  .keyword-actions {
+    width: 100%;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .keyword-actions .btn {
+    flex: 1;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    min-height: 40px;
+  }
+
+  /* 关键词内容区域 */
+  .keyword-item-content {
+    padding: 1rem;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .keyword-reply {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 0.75rem;
+  }
+
+  .keyword-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .keyword-stat {
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+    padding: 0.5rem;
+    background: var(--glass-bg);
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+  }
+
+  /* 空状态优化 */
+  .empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .empty-state p {
+    font-size: 0.875rem;
+    color: var(--text-color-muted);
+    margin-bottom: 1.5rem;
+  }
+
+  .quick-add-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 16px;
+    min-height: 48px;
+    border-radius: 0.75rem;
+  }
+}
+
+/* 小屏手机横屏 (sm: 576px-767px) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .keyword-input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .add-btn {
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
+  }
+
+  .keyword-actions {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .keyword-actions .btn {
+    flex: 0 0 auto;
+    min-width: 80px;
+  }
+}
+
+/* 平板竖屏 (md: 768px+) */
+@media (min-width: 768px) {
+  .keyword-input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .add-btn {
+    grid-column: auto;
+    margin: 0;
+    width: auto;
+  }
+
+  .keyword-item-header {
+    flex-direction: row;
+    align-items: center;
     gap: 1rem;
   }
 
   .keyword-actions {
-    align-self: flex-end;
+    flex-direction: row;
+    gap: 0.5rem;
+    width: auto;
   }
 
-  .keyword-input-group {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .keyword-input-group .add-btn {
-    margin-left: 0;
-    margin-top: 10px;
+  .keyword-actions .btn {
+    flex: 0 0 auto;
   }
 }

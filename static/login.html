@@ -112,6 +112,184 @@
     .loading.show {
       display: inline-block;
     }
+
+    /* ================================
+       移动端响应式优化
+       ================================ */
+
+    /* 超小屏设备优化 (xs: 0-575px) */
+    @media (max-width: 575.98px) {
+      body {
+        padding: 10px;
+        align-items: flex-start;
+        padding-top: 20px;
+      }
+
+      .login-container {
+        max-width: 100%;
+        margin: 0;
+        border-radius: 15px;
+        min-height: auto;
+      }
+
+      .login-header {
+        padding: 20px 15px;
+      }
+
+      .login-header h2 {
+        font-size: 1.5rem;
+      }
+
+      .login-header p {
+        font-size: 0.9rem;
+      }
+
+      .login-header .fs-1 {
+        font-size: 2.5rem !important;
+      }
+
+      .login-body {
+        padding: 20px 15px;
+      }
+
+      .form-control {
+        padding: 14px 15px;
+        font-size: 16px; /* 防止iOS缩放 */
+        border-radius: 8px;
+      }
+
+      .input-group .form-control {
+        padding-left: 45px;
+      }
+
+      .btn-login {
+        padding: 14px;
+        font-size: 16px;
+        border-radius: 8px;
+        min-height: 48px; /* 触摸友好 */
+      }
+
+      .btn-group .btn {
+        font-size: 0.875rem;
+        padding: 8px 12px;
+      }
+
+      .input-group {
+        margin-bottom: 16px;
+      }
+
+      .alert {
+        font-size: 0.875rem;
+        padding: 12px;
+      }
+    }
+
+    /* 小屏手机横屏 (sm: 576px-767px) */
+    @media (min-width: 576px) and (max-width: 767.98px) {
+      body {
+        padding: 15px;
+        padding-top: 30px;
+      }
+
+      .login-container {
+        max-width: 450px;
+        border-radius: 18px;
+      }
+
+      .login-header {
+        padding: 25px 20px;
+      }
+
+      .login-body {
+        padding: 30px 20px;
+      }
+
+      .form-control {
+        padding: 12px 15px;
+        font-size: 15px;
+      }
+
+      .btn-login {
+        padding: 12px;
+        font-size: 15px;
+        min-height: 44px;
+      }
+    }
+
+    /* 平板竖屏 (md: 768px+) */
+    @media (min-width: 768px) {
+      body {
+        padding: 20px;
+      }
+
+      .login-container {
+        max-width: 400px;
+      }
+
+      .login-header {
+        padding: 30px;
+      }
+
+      .login-body {
+        padding: 40px 30px;
+      }
+    }
+
+    /* 触摸设备特定优化 */
+    @media (hover: none) and (pointer: coarse) {
+      .btn-login:hover {
+        transform: none;
+        background: var(--primary-color);
+      }
+
+      .btn-login:active {
+        transform: scale(0.98);
+        background: #0b5ed7;
+      }
+
+      .btn-group .btn:hover {
+        transform: none;
+      }
+
+      .btn-group .btn:active {
+        transform: scale(0.95);
+      }
+    }
+
+    /* 横屏模式优化 */
+    @media (max-height: 600px) and (orientation: landscape) {
+      body {
+        align-items: flex-start;
+        padding-top: 10px;
+      }
+
+      .login-header {
+        padding: 15px 20px;
+      }
+
+      .login-header .fs-1 {
+        font-size: 2rem !important;
+        margin-bottom: 0.5rem !important;
+      }
+
+      .login-header h2 {
+        font-size: 1.25rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .login-header p {
+        font-size: 0.875rem;
+        margin: 0;
+      }
+
+      .login-body {
+        padding: 20px;
+      }
+
+      .input-group {
+        margin-bottom: 12px;
+      }
+    }
   </style>
 </head>
 <body>

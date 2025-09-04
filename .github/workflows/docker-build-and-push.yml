@@ -2,15 +2,6 @@ name: 🐳 Docker Build and Push
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
-  push:
     tags:
       - 'v*'
   workflow_dispatch:
@@ -149,7 +140,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=闲鱼自动回复系统
             org.opencontainers.image.description=企业级多用户闲鱼自动回复和管理系统
@@ -170,14 +161,8 @@ jobs:
           echo "- GitHub ref: ${{ github.ref }}"
           echo "- GitHub ref name: ${{ github.ref_name }}"
 
-          # 确定最终使用的版本号
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            FINAL_VERSION="${{ github.ref_name }}"
-          elif [[ "${{ github.ref }}" == refs/heads/main ]] || [[ "${{ github.ref }}" == refs/heads/master ]]; then
-            FINAL_VERSION="latest"
-          else
-            FINAL_VERSION="${{ github.ref_name }}"
-          fi
+          # 确定最终使用的版本号（仅标签触发）
+          FINAL_VERSION="${{ github.ref_name }}"
 
           echo "Final version to use: $FINAL_VERSION"
           echo "final_version=$FINAL_VERSION" >> $GITHUB_OUTPUT

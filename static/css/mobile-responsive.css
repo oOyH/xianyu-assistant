@@ -1,0 +1,323 @@
+/* ================================
+   移动端响应式基础样式 - Bootstrap 5.3标准断点
+   ================================ */
+
+/* Bootstrap 5.3 标准断点定义
+   xs: 0px      - 超小屏手机
+   sm: 576px    - 小屏手机横屏
+   md: 768px    - 平板竖屏
+   lg: 992px    - 平板横屏/小桌面
+   xl: 1200px   - 桌面
+   xxl: 1400px  - 大桌面
+*/
+
+/* ================================
+   全局移动端基础变量
+   ================================ */
+:root {
+  /* 移动端字体系统 */
+  --mobile-font-base: 16px;        /* 避免iOS自动缩放 */
+  --mobile-font-small: 14px;
+  --mobile-font-large: 18px;
+  --mobile-line-height: 1.5;
+  
+  /* 触摸目标尺寸 */
+  --touch-target-min: 44px;        /* Apple HIG标准 */
+  --touch-target-comfortable: 48px;
+  
+  /* 移动端间距系统 */
+  --mobile-spacing-xs: 0.5rem;     /* 8px */
+  --mobile-spacing-sm: 0.75rem;    /* 12px */
+  --mobile-spacing-md: 1rem;       /* 16px */
+  --mobile-spacing-lg: 1.5rem;     /* 24px */
+  --mobile-spacing-xl: 2rem;       /* 32px */
+  
+  /* 移动端容器宽度 */
+  --mobile-container-padding: 1rem;
+  --mobile-content-max-width: 100%;
+}
+
+/* ================================
+   超小屏设备 (xs: 0px+)
+   ================================ */
+/* 基础移动端样式 - 适用于所有设备 */
+body {
+  font-size: var(--mobile-font-base);
+  line-height: var(--mobile-line-height);
+}
+
+/* 触摸友好的按钮 */
+.btn {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  padding: 0.75rem 1rem;
+  font-size: var(--mobile-font-base);
+}
+
+/* 表单元素触摸优化 */
+.form-control,
+.form-select {
+  min-height: var(--touch-target-min);
+  font-size: var(--mobile-font-base);
+  padding: 0.75rem;
+}
+
+/* 移动端容器优化 */
+.container,
+.container-fluid {
+  padding-left: var(--mobile-container-padding);
+  padding-right: var(--mobile-container-padding);
+}
+
+/* ================================
+   小屏手机横屏 (sm: 576px+)
+   ================================ */
+@media (min-width: 576px) {
+  /* 稍微增大字体 */
+  body {
+    font-size: 16px;
+  }
+  
+  /* 按钮可以稍微小一些 */
+  .btn {
+    min-height: 42px;
+    padding: 0.625rem 1rem;
+  }
+  
+  /* 表单元素调整 */
+  .form-control,
+  .form-select {
+    min-height: 42px;
+    padding: 0.625rem 0.75rem;
+  }
+  
+  /* 容器间距调整 */
+  .container,
+  .container-fluid {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+/* ================================
+   平板竖屏 (md: 768px+)
+   ================================ */
+@media (min-width: 768px) {
+  /* 恢复桌面端字体大小 */
+  body {
+    font-size: 14px;
+  }
+  
+  /* 按钮恢复正常尺寸 */
+  .btn {
+    min-height: auto;
+    padding: 0.375rem 0.75rem;
+  }
+  
+  /* 表单元素恢复正常 */
+  .form-control,
+  .form-select {
+    min-height: auto;
+    padding: 0.375rem 0.75rem;
+  }
+  
+  /* 容器使用Bootstrap默认间距 */
+  .container,
+  .container-fluid {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+}
+
+/* ================================
+   移动端表格优化
+   ================================ */
+@media (max-width: 767.98px) {
+  /* 表格横向滚动 */
+  .table-responsive-mobile {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .table-responsive-mobile .table {
+    min-width: 600px;
+  }
+  
+  /* 表格字体调整 */
+  .table th,
+  .table td {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.25rem;
+  }
+  
+  /* 表格按钮组优化 */
+  .table .btn-group {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .table .btn-group .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    min-height: 32px;
+  }
+}
+
+/* ================================
+   移动端卡片布局
+   ================================ */
+@media (max-width: 767.98px) {
+  /* 卡片间距优化 */
+  .card {
+    margin-bottom: var(--mobile-spacing-md);
+  }
+  
+  .card-body {
+    padding: var(--mobile-spacing-md);
+  }
+  
+  /* 卡片标题调整 */
+  .card-title {
+    font-size: var(--mobile-font-large);
+    margin-bottom: var(--mobile-spacing-sm);
+  }
+  
+  .card-text {
+    font-size: var(--mobile-font-base);
+    line-height: var(--mobile-line-height);
+  }
+}
+
+/* ================================
+   移动端模态框优化
+   ================================ */
+@media (max-width: 767.98px) {
+  .modal-dialog {
+    margin: var(--mobile-spacing-sm);
+    max-width: calc(100% - 1rem);
+  }
+  
+  .modal-content {
+    border-radius: 1rem;
+  }
+  
+  .modal-header {
+    padding: var(--mobile-spacing-md);
+  }
+  
+  .modal-body {
+    padding: var(--mobile-spacing-md);
+  }
+  
+  .modal-footer {
+    padding: var(--mobile-spacing-md);
+    gap: var(--mobile-spacing-sm);
+  }
+  
+  .modal-footer .btn {
+    flex: 1;
+  }
+}
+
+/* ================================
+   移动端导航优化
+   ================================ */
+@media (max-width: 767.98px) {
+  /* 导航链接触摸优化 */
+  .nav-link {
+    padding: var(--mobile-spacing-md);
+    font-size: var(--mobile-font-base);
+    min-height: var(--touch-target-min);
+    display: flex;
+    align-items: center;
+  }
+  
+  /* 面包屑导航 */
+  .breadcrumb {
+    font-size: 0.875rem;
+    padding: var(--mobile-spacing-sm);
+  }
+  
+  .breadcrumb-item {
+    padding: 0.25rem 0;
+  }
+}
+
+/* ================================
+   移动端文字排版优化
+   ================================ */
+@media (max-width: 767.98px) {
+  /* 标题层次 */
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1.125rem; }
+  h5 { font-size: 1rem; }
+  h6 { font-size: 0.875rem; }
+  
+  /* 段落间距 */
+  p {
+    margin-bottom: var(--mobile-spacing-md);
+    line-height: var(--mobile-line-height);
+  }
+  
+  /* 小字体可读性 */
+  .small,
+  small {
+    font-size: 0.875rem;
+  }
+  
+  /* 代码块 */
+  code {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  pre {
+    font-size: 0.8125rem;
+    padding: var(--mobile-spacing-md);
+  }
+}
+
+/* ================================
+   移动端工具类
+   ================================ */
+@media (max-width: 575.98px) {
+  .mobile-hide { display: none !important; }
+  .mobile-full-width { width: 100% !important; }
+  .mobile-text-center { text-align: center !important; }
+  .mobile-mb-3 { margin-bottom: 1rem !important; }
+  .mobile-p-3 { padding: 1rem !important; }
+}
+
+@media (min-width: 576px) {
+  .mobile-hide { display: block !important; }
+}
+
+/* ================================
+   触摸设备特定优化
+   ================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* 移除hover效果，使用active状态 */
+  .btn:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .btn:active {
+    transform: scale(0.98);
+  }
+  
+  /* 链接触摸反馈 */
+  a:active {
+    opacity: 0.7;
+  }
+  
+  /* 表单元素触摸反馈 */
+  .form-control:focus,
+  .form-select:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+}

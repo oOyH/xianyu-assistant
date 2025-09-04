@@ -1,0 +1,352 @@
+/* ================================
+   表格响应式优化样式
+   ================================ */
+
+/* ================================
+   基础表格响应式
+   ================================ */
+.table-responsive-mobile {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive-mobile .table {
+  margin-bottom: 0;
+  min-width: 600px;
+}
+
+/* ================================
+   移动端表格优化
+   ================================ */
+@media (max-width: 767.98px) {
+  /* 表格容器 */
+  .table-container {
+    margin: 0 -1rem;
+    padding: 0 1rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 表格基础样式 */
+  .table {
+    font-size: 0.875rem;
+    min-width: 600px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 0.5rem 0.25rem;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  
+  .table th {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  
+  /* 表格按钮组优化 */
+  .table .btn-group {
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 80px;
+  }
+  
+  .table .btn-group .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    min-height: 32px;
+    border-radius: 0.375rem;
+  }
+  
+  /* 状态徽章优化 */
+  .table .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  /* 开关按钮优化 */
+  .table .status-toggle {
+    width: 36px;
+    height: 18px;
+  }
+  
+  .table .status-slider:before {
+    height: 12px;
+    width: 12px;
+    left: 3px;
+    bottom: 3px;
+  }
+  
+  .table input:checked + .status-slider:before {
+    transform: translateX(18px);
+  }
+}
+
+/* ================================
+   卡片式表格布局（极小屏幕）
+   ================================ */
+@media (max-width: 575.98px) {
+  .table-card-layout .table,
+  .table-card-layout .table thead,
+  .table-card-layout .table tbody,
+  .table-card-layout .table th,
+  .table-card-layout .table td,
+  .table-card-layout .table tr {
+    display: block;
+  }
+  
+  .table-card-layout .table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .table-card-layout .table tr {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .table-card-layout .table td {
+    border: none;
+    padding: 0.5rem 0;
+    position: relative;
+    padding-left: 40%;
+    white-space: normal;
+  }
+  
+  .table-card-layout .table td:before {
+    content: attr(data-label) ": ";
+    position: absolute;
+    left: 0;
+    width: 35%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text-color-secondary);
+    font-size: 0.875rem;
+  }
+  
+  .table-card-layout .table .btn-group {
+    flex-direction: row;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  
+  .table-card-layout .table .btn-group .btn {
+    flex: 0 0 auto;
+    min-width: 60px;
+  }
+}
+
+/* ================================
+   特定表格优化
+   ================================ */
+
+/* 账号管理表格 */
+@media (max-width: 767.98px) {
+  #cookieTable .btn-group {
+    min-width: 100px;
+  }
+  
+  #cookieTable .cookie-value {
+    max-width: 120px;
+    font-size: 0.75rem;
+    max-height: 60px;
+    overflow: hidden;
+  }
+  
+  #cookieTable .status-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+}
+
+/* 关键词管理表格 */
+@media (max-width: 767.98px) {
+  .keyword-item {
+    margin-bottom: 0.75rem;
+  }
+  
+  .keyword-item-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  
+  .keyword-item-content {
+    padding: 0.75rem;
+  }
+  
+  .keyword-actions {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+  
+  .keyword-actions .btn {
+    flex: 1;
+    margin: 0 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.375rem 0.5rem;
+  }
+}
+
+/* 商品管理表格 */
+@media (max-width: 767.98px) {
+  #itemsTableBody .btn-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  #itemsTableBody .btn-group .btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    min-width: 32px;
+    min-height: 28px;
+  }
+  
+  #itemsTableBody .item-image {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* 日志表格 */
+@media (max-width: 767.98px) {
+  .log-table .table td {
+    padding: 0.375rem 0.25rem;
+  }
+  
+  .log-table .log-level {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .log-table .log-time {
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  .log-table .log-message {
+    font-size: 0.8rem;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ================================
+   表格滚动条优化
+   ================================ */
+.table-responsive-mobile::-webkit-scrollbar,
+.table-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive-mobile::-webkit-scrollbar-track,
+.table-container::-webkit-scrollbar-track {
+  background: var(--glass-bg);
+  border-radius: 4px;
+}
+
+.table-responsive-mobile::-webkit-scrollbar-thumb,
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+}
+
+.table-responsive-mobile::-webkit-scrollbar-thumb:hover,
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+
+/* ================================
+   表格加载状态
+   ================================ */
+@media (max-width: 767.98px) {
+  .table-loading {
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+  
+  .table-loading .spinner-border {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .table-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-color-muted);
+  }
+  
+  .table-empty i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+}
+
+/* ================================
+   表格工具栏优化
+   ================================ */
+@media (max-width: 767.98px) {
+  .table-toolbar {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .table-toolbar .btn-group {
+    width: 100%;
+  }
+  
+  .table-toolbar .btn-group .btn {
+    flex: 1;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+  }
+  
+  .table-toolbar .form-control {
+    font-size: 16px; /* 防止iOS缩放 */
+  }
+  
+  .table-toolbar .input-group {
+    width: 100%;
+  }
+}
+
+/* ================================
+   分页组件优化
+   ================================ */
+@media (max-width: 767.98px) {
+  .pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .pagination .page-link {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .pagination .page-item:first-child .page-link,
+  .pagination .page-item:last-child .page-link {
+    border-radius: 0.375rem;
+  }
+}

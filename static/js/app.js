@@ -224,6 +224,37 @@ function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('show');
 }
 
+// 关闭移动端侧边栏
+function closeMobileSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+        sidebar.classList.remove('show');
+    }
+}
+
+// 返回顶部功能
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
+// 监听滚动事件，控制返回顶部按钮显示
+function handleBackToTopButton() {
+    const backToTopButton = document.getElementById('backToTop');
+    if (!backToTopButton) return;
+
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+    // 滚动超过300px时显示按钮
+    if (scrollTop > 300) {
+        backToTopButton.classList.add('show');
+    } else {
+        backToTopButton.classList.remove('show');
+    }
+}
+
 // ================================
 // 【仪表盘菜单】相关功能
 // ================================
@@ -2121,6 +2152,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         sidebar.classList.remove('show');
     }
     });
+
+    // 点击侧边栏导航链接时关闭移动端菜单
+    document.addEventListener('click', function(e) {
+    // 检查是否点击的是侧边栏内的导航链接
+    const clickedElement = e.target;
+    const sidebar = document.getElementById('sidebar');
+
+    // 检查点击的元素是否在侧边栏内，并且是导航链接
+    if (sidebar && sidebar.contains(clickedElement)) {
+        const navLink = clickedElement.closest('.nav-link');
+        const hasShowSection = clickedElement.getAttribute('onclick') &&
+                              clickedElement.getAttribute('onclick').includes('showSection');
+
+        // 如果点击的是导航链接或包含showSection的元素
+        if (navLink || hasShowSection) {
+        // 延迟关闭，确保页面切换动画完成
+        setTimeout(function() {
+            closeMobileSidebar();
+        }, 150);
+        }
+    }
+    });
+
+    // 监听滚动事件，控制返回顶部按钮
+    window.addEventListener('scroll', handleBackToTopButton);
+
+    // 页面加载时初始化返回顶部按钮状态
+    handleBackToTopButton();
 });
 
 // ==================== 默认回复管理功能 ====================

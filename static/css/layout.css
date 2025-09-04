@@ -96,6 +96,7 @@
   transition: all var(--transition-fluid);
   border-radius: var(--radius-2xl);
   font-weight: 500;
+  font-size: 1rem; /* 增大字体 */
   position: relative;
   overflow: hidden;
 }
@@ -136,6 +137,7 @@
   margin-right: 0.75rem;
   width: 20px;
   text-align: center;
+  font-size: 1.1rem; /* 稍微增大图标 */
 }
 
 .nav-divider {
@@ -175,10 +177,148 @@
   padding: 0;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
+/* ================================
+   响应式设计 - Bootstrap 5.3标准断点
+   ================================ */
+
+/* 超小屏设备 (xs: 0-575px) */
+@media (max-width: 575.98px) {
   .sidebar {
     transform: translateX(-100%);
+    width: 100%;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    border-radius: 0;
+    z-index: 1050;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  /* 添加遮罩层 */
+  .sidebar.show::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+    backdrop-filter: blur(2px);
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding: 0.5rem;
+    position: relative; /* 为内部定位菜单按钮 */
+  }
+
+  .mobile-toggle {
+    display: block !important;
+    position: absolute; /* 改为相对于main-content定位 */
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.5rem;
+    z-index: 1051;
+  }
+
+  .content-header {
+    padding: 1rem;
+    padding-left: 5rem; /* 增加左侧空间，确保标题不被遮挡 */
+    margin-bottom: 1rem;
+    position: static;
+  }
+
+  /* 仪表盘标题区域特殊处理 */
+  .content-header .d-flex {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 1rem;
+  }
+
+  .content-header .version-info {
+    align-self: stretch;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .content-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .content-header p {
+    font-size: 0.875rem;
+    margin-bottom: 0;
+  }
+}
+
+/* 小屏手机横屏 (sm: 576px-767px) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 320px;
+    z-index: 1050;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  /* 添加遮罩层 */
+  .sidebar.show::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 320px;
+    width: calc(100vw - 320px);
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: -1;
+    backdrop-filter: blur(1px);
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding: 1rem;
+    position: relative;
+  }
+
+  .mobile-toggle {
+    display: block !important;
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 1051;
+  }
+
+  .content-header {
+    padding: 1.5rem;
+    padding-left: 5.5rem; /* 增加左侧空间 */
+    margin-bottom: 1.5rem;
+  }
+
+  /* 仪表盘标题区域优化 */
+  .content-header .d-flex {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 1rem;
+  }
+
+  .content-header h2 {
+    font-size: 1.375rem; /* 小屏横屏稍大一点 */
+  }
+}
+
+/* 平板竖屏 (md: 768px-991px) */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px;
   }
 
   .sidebar.show {
@@ -187,19 +327,110 @@
 
   .main-content {
     margin-left: 0;
+    padding: 1.5rem;
+    position: relative;
   }
 
   .mobile-toggle {
     display: block !important;
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1051;
+  }
+
+  .content-header {
+    padding: 2rem;
+    padding-left: 6rem; /* 增加左侧空间 */
+    margin-bottom: 2rem;
+  }
+
+  /* 平板竖屏恢复横向布局 */
+  .content-header .d-flex {
+    flex-direction: row;
+    align-items: center !important;
+    gap: 1rem;
+  }
+
+  .content-header h2 {
+    font-size: 1.5rem; /* 平板竖屏适中大小 */
+  }
+}
+
+/* 平板横屏/小桌面 (lg: 992px-1199px) */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .sidebar {
+    transform: translateX(0);
+    width: 260px;
+  }
+
+  .main-content {
+    margin-left: 260px;
+    padding: 1.5rem;
+  }
+
+  .mobile-toggle {
+    display: none !important;
+  }
+
+  .content-header h2 {
+    font-size: 1.75rem; /* 大屏幕标题大小 */
+  }
+}
+
+/* 桌面 (xl: 1200px-1399px) */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+  .sidebar {
+    transform: translateX(0);
+    width: 280px;
+  }
+
+  .main-content {
+    margin-left: 280px;
+    padding: 2rem;
+  }
+
+  .mobile-toggle {
+    display: none !important;
+  }
+
+  .content-header h2 {
+    font-size: 1.875rem; /* 桌面端标题大小 */
+  }
+}
+
+/* 大桌面 (xxl: 1400px+) */
+@media (min-width: 1400px) {
+  .sidebar {
+    transform: translateX(0);
+    width: 300px;
+  }
+
+  .main-content {
+    margin-left: 300px;
+    padding: 2.5rem;
+  }
+
+  .mobile-toggle {
+    display: none !important;
+  }
+
+  .content-header {
+    padding: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .content-header h2 {
+    font-size: 2rem; /* 大桌面端标题大小 */
   }
 }
 
 .mobile-toggle {
   display: none;
-  position: fixed;
-  top: 1.5rem;
-  left: 1.5rem;
-  z-index: 1001;
+  position: absolute; /* 改为相对定位 */
+  top: 1rem;
+  left: 1rem;
+  z-index: 1051;
   background: var(--glass-bg);
   backdrop-filter: blur(25px) saturate(180%);
   -webkit-backdrop-filter: blur(25px) saturate(180%);
@@ -207,13 +438,38 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-2xl);
   padding: 0.75rem;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   transition: all var(--transition-quick);
+  min-width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.25rem;
 }
 
 .mobile-toggle:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.mobile-toggle:active {
+  transform: translateY(0) scale(0.95);
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+  .mobile-toggle:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
+  }
+
+  .mobile-toggle:active {
+    transform: scale(0.95);
+    background: var(--glass-bg);
+    opacity: 0.8;
+  }
 }
 
 /* 内容区域样式 */

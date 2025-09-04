@@ -10,11 +10,6 @@
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-  <!-- 移动端菜单切换按钮 -->
-  <button class="mobile-toggle" onclick="toggleSidebar()">
-    <i class="bi bi-list"></i>
-  </button>
-
   <!-- 侧边栏 -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -144,6 +139,11 @@
 
   <!-- 主内容区域 -->
   <div class="main-content">
+    <!-- 移动端菜单切换按钮 -->
+    <button class="mobile-toggle" onclick="toggleSidebar()">
+      <i class="bi bi-list"></i>
+    </button>
+
     <!-- 仪表盘内容 -->
     <div id="dashboard-section" class="content-section active">
       <div class="content-header">
@@ -2914,6 +2914,11 @@
 
   <!-- 提示消息容器 -->
   <div class="toast-container"></div>
+
+  <!-- 返回顶部按钮 -->
+  <button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="返回顶部">
+    <i class="bi bi-arrow-up"></i>
+  </button>
 
   <!-- JS依赖 -->
   <script src="/static/lib/bootstrap/bootstrap.bundle.min.js"></script>
