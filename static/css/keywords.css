@@ -55,32 +55,35 @@
   position: absolute;
   top: -0.5rem;
   left: 0.75rem;
-  background: #f8fafc;
+  background: var(--glass-bg);
   padding: 0 0.5rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--text-color-muted);
   z-index: 1;
 }
 
 .input-field input, .input-field select {
   width: 100%;
   padding: 1rem 0.75rem 0.75rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--glass-border);
   border-radius: 12px;
   font-size: 0.875rem;
   transition: all 0.3s ease;
-  background: white;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  color: var(--text-color);
 }
 
 .input-field input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 10%, transparent);
 }
 
 .add-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, var(--success-color) 0%, color-mix(in srgb, var(--success-color) 80%, #000 20%) 100%);
   color: white;
   border: none;
   border-radius: 12px;
@@ -112,27 +115,31 @@
 }
 
 .keyword-item {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid var(--glass-border);
   border-radius: 12px;
   margin-bottom: 1rem;
   transition: all 0.3s ease;
   overflow: hidden;
+  color: var(--text-color);
 }
 
 .keyword-item:hover {
-  border-color: #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 15%, transparent);
   transform: translateY(-1px);
 }
 
 .keyword-item-header {
   padding: 1rem 1.5rem;
-  background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
+  background: color-mix(in srgb, var(--glass-bg) 50%, transparent);
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: var(--text-color);
 }
 
 .keyword-tag {
@@ -165,34 +172,35 @@
 }
 
 .edit-btn {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: color-mix(in srgb, var(--glass-bg) 80%, transparent);
+  color: var(--text-color-muted);
 }
 
 .edit-btn:hover {
-  background: #e5e7eb;
-  color: #374151;
+  background: color-mix(in srgb, var(--glass-bg) 60%, transparent);
+  color: var(--text-color);
 }
 
 .edit-btn-disabled {
-  background: #f9fafb !important;
-  color: #9ca3af !important;
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent) !important;
+  color: var(--text-color-muted) !important;
+  opacity: 0.5 !important;
   cursor: not-allowed !important;
 }
 
 .edit-btn-disabled:hover {
-  background: #f9fafb !important;
-  color: #9ca3af !important;
+  background: color-mix(in srgb, var(--glass-bg) 90%, transparent) !important;
+  color: var(--text-color-muted) !important;
 }
 
 .delete-btn {
-  background: #fef2f2;
-  color: #ef4444;
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  color: var(--danger-color);
 }
 
 .delete-btn:hover {
-  background: #fee2e2;
-  color: #dc2626;
+  background: color-mix(in srgb, var(--danger-color) 20%, transparent);
+  color: var(--danger-color);
 }
 
 .keyword-content {
@@ -200,7 +208,7 @@
 }
 
 .reply-text {
-  color: #374151;
+  color: var(--text-color);
   line-height: 1.6;
   margin: 0;
   font-size: 0.875rem;
@@ -209,7 +217,7 @@
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  color: #6b7280;
+  color: var(--text-color-muted);
 }
 
 .empty-state i {
@@ -220,7 +228,7 @@
 
 .empty-state h3 {
   margin: 0 0 0.5rem;
-  color: #374151;
+  color: var(--text-color);
 }
 
 .empty-state p {
@@ -246,11 +254,15 @@
 
 /* 账号选择器现代化 */
 .account-selector {
-  background: white;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   padding: 2rem;
   margin-bottom: 2rem;
+  color: var(--text-color);
 }
 
 .selector-header {
@@ -274,13 +286,13 @@
 
 .selector-title {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-color);
   font-weight: 600;
 }
 
 .selector-subtitle {
   margin: 0;
-  color: #6b7280;
+  color: var(--text-color-muted);
   font-size: 0.875rem;
 }
 
@@ -291,18 +303,21 @@
 .account-select {
   width: 100%;
   padding: 1rem 1.25rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--glass-border);
   border-radius: 12px;
   font-size: 1rem;
-  background: white;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  color: var(--text-color);
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .account-select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 10%, transparent);
 }
 
 /* ================================
@@ -337,10 +352,10 @@
 
 .preview-container {
   padding: 10px;
-  border: 2px dashed #ddd;
+  border: 2px dashed var(--glass-border);
   border-radius: 8px;
   text-align: center;
-  background-color: #f8f9fa;
+  background-color: var(--glass-bg);
 }
 
 .keyword-type-badge {
@@ -353,13 +368,13 @@
 }
 
 .keyword-type-text {
-  background-color: #e3f2fd;
-  color: #1976d2;
+  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  color: var(--accent-color);
 }
 
 .keyword-type-image {
-  background-color: #f3e5f5;
-  color: #7b1fa2;
+  background-color: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  color: var(--warning-color);
 }
 
 /* 关键词列表中的图片预览 */
@@ -367,14 +382,48 @@
   max-width: 60px;
   max-height: 60px;
   border-radius: 4px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--glass-border);
   cursor: pointer;
 }
 
 .keyword-image-preview:hover {
-  border-color: #007bff;
+  border-color: var(--accent-color);
   transform: scale(1.05);
   transition: all 0.2s ease;
+}
+
+/* ================================
+   确保浅色和深色主题文字颜色正确
+   ================================ */
+
+/* 确保所有关键词相关元素的文字颜色正确 */
+.account-selector *,
+.keyword-item *,
+.keywords-list *,
+.input-field *,
+.keyword-input-area * {
+  color: inherit;
+}
+
+/* 确保特定元素使用正确的文字颜色 */
+.keyword-item .keyword-tag,
+.keyword-item .reply-text,
+.keyword-item .keyword-meta,
+.account-selector .selector-title,
+.account-selector .selector-subtitle {
+  color: var(--text-color);
+}
+
+/* 确保按钮文字颜色正确 */
+.add-btn,
+.quick-add-btn,
+.btn-image {
+  color: white !important;
+}
+
+.edit-btn,
+.delete-btn {
+  color: inherit;
 }
 
 /* ================================

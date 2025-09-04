@@ -16,6 +16,7 @@ import uvicorn
 import pandas as pd
 import io
 import asyncio
+import aiohttp
 from collections import defaultdict
 
 import cookie_manager
@@ -405,6 +406,67 @@ async def health_check():
             "timestamp": time.time(),
             "error": str(e)
         }
+
+
+# ================================
+# 外部 API 代理端点
+# ================================
+
+@app.get('/api/external/stats')
+async def proxy_stats():
+    """代理外部统计 API 请求，解决 Mixed Content 问题"""
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get('http://xianyu.zhinianblog.cn/?action=stats') as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="请求超时")
+    except Exception as e:
+        logger.error(f"代理统计 API 失败: {e}")
+        raise HTTPException(status_code=500, detail="代理请求失败")
+
+
+@app.get('/api/external/version')
+async def proxy_version():
+    """代理外部版本检查 API 请求"""
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get('http://xianyu.zhinianblog.cn/index.php?action=getVersion') as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="请求超时")
+    except Exception as e:
+        logger.error(f"代理版本 API 失败: {e}")
+        raise HTTPException(status_code=500, detail="代理请求失败")
+
+
+@app.get('/api/external/update-info')
+async def proxy_update_info():
+    """代理外部更新信息 API 请求"""
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo') as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="请求超时")
+    except Exception as e:
+        logger.error(f"代理更新信息 API 失败: {e}")
+        raise HTTPException(status_code=500, detail="代理请求失败")
 
 
 # 重定向根路径到登录页面

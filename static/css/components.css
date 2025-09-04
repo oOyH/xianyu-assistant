@@ -7,11 +7,13 @@
   box-sizing: border-box;
 }
 
-/* 确保所有卡片都使用Liquid Glass效果 */
+/* 确保所有卡片和内容区域都使用Liquid Glass效果 */
 .card,
 .stat-card,
 .keyword-container,
+.content-section,
 .content-section .card,
+.content-body,
 .modal-content,
 .table-container {
   background: var(--glass-bg) !important;
@@ -797,41 +799,119 @@ textarea.form-control {
 /* 旧的重复样式已移除，使用上面的统一outline按钮样式 */
 
 /* ================================
-   通用表格样式 - 适用于所有菜单的表格
+   深色主题强制修复 - 确保所有元素正确显示
    ================================ */
-.table {
-  margin-bottom: 0;
-  background: transparent;
+
+/* 强制修复可能的白色背景问题 */
+body.dark-mode .content-section,
+body.dark-mode .content-body,
+body.dark-mode .card,
+body.dark-mode .modal-content,
+body.dark-mode .dropdown-menu,
+body.dark-mode .table,
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode .btn-secondary,
+body.dark-mode .btn-outline-primary,
+body.dark-mode .alert,
+body.dark-mode .toast,
+body.dark-mode .container,
+body.dark-mode .container-fluid,
+body.dark-mode .row,
+body.dark-mode .col,
+body.dark-mode [class*="col-"] {
+  background: var(--glass-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--glass-border) !important;
 }
 
-.table th {
-  border-top: none;
-  border-bottom: 2px solid var(--border-color);
-  font-weight: 600;
-  color: var(--dark-color);
-  background: rgba(79, 70, 229, 0.05);
-  padding: 1rem;
+/* 移除可能的白色背景 */
+body.dark-mode .bg-white,
+body.dark-mode .bg-light {
+  background: var(--glass-bg) !important;
 }
 
-.table td {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: middle;
+/* 确保主要文本元素在深色主题下可见 */
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode div:not(.btn):not(.badge),
+body.dark-mode li,
+body.dark-mode td,
+body.dark-mode th,
+body.dark-mode label,
+body.dark-mode .form-text {
+  color: var(--text-color) !important;
 }
 
-.table tbody tr:hover {
-  background: rgba(79, 70, 229, 0.02);
+/* 保持特殊元素的颜色 */
+body.dark-mode .btn-primary,
+body.dark-mode .btn-success,
+body.dark-mode .btn-danger,
+body.dark-mode .btn-warning,
+body.dark-mode .badge,
+body.dark-mode .modal-header,
+body.dark-mode .card-header {
+  color: white !important;
 }
 
-.badge {
-  font-weight: 500;
-  padding: 5px 10px;
+/* 修复可能的透明背景问题 */
+body.dark-mode .table-responsive {
+  background: transparent !important;
 }
 
-.form-control:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+/* 精确移除特定的白色背景类 */
+body.dark-mode .bg-white,
+body.dark-mode .bg-light,
+body.dark-mode .table-light,
+body.dark-mode .list-group-item-light {
+  background: var(--glass-bg) !important;
 }
+
+/* 确保主要内容区域透明 */
+body.dark-mode .content-section,
+body.dark-mode .content-body,
+body.dark-mode .main-content {
+  background: transparent !important;
+}
+
+/* 确保卡片和容器使用正确的背景 */
+body.dark-mode .card,
+body.dark-mode .stat-card,
+body.dark-mode .modal-content,
+body.dark-mode .table-container {
+  background: var(--glass-bg) !important;
+}
+
+/* ================================
+   Bootstrap 默认样式强制覆盖
+   ================================ */
+
+/* 强制覆盖 Bootstrap 的默认白色背景 */
+body.dark-mode .container,
+body.dark-mode .container-fluid,
+body.dark-mode .container-sm,
+body.dark-mode .container-md,
+body.dark-mode .container-lg,
+body.dark-mode .container-xl,
+body.dark-mode .container-xxl,
+body.dark-mode .row,
+body.dark-mode .col,
+body.dark-mode [class*="col-"],
+body.dark-mode .table,
+body.dark-mode .table-responsive,
+body.dark-mode .list-group,
+body.dark-mode .list-group-item {
+  background-color: transparent !important;
+}
+
+/* 确保表格在深色主题下正确显示 */
+body.dark-mode .table {
+  --bs-table-bg: transparent !important;
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.05) !important;
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.075) !important;
+}
+
+/* 旧的重复样式已移除，使用上面统一的 Liquid Glass 样式 */
 
 .cookie-value {
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
@@ -918,22 +998,7 @@ textarea.form-control {
   margin-bottom: 0.5rem;
 }
 
-/* ================================
-   通用模态框样式 - 适用于所有菜单的模态框
-   ================================ */
-.modal-content {
-  border: none;
-  border-radius: 16px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  backdrop-filter: blur(10px);
-}
-
-.modal-header {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  color: white;
-  border: none;
-  border-radius: 16px 16px 0 0;
-}
+/* 重复的模态框样式已移除，使用上面统一的 Liquid Glass 样式 */
 
 .toast-container {
   position: fixed;

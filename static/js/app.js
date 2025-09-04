@@ -9436,16 +9436,25 @@ async function loadQQReplySecretKey() {
 
 /**
  * 获取适配当前协议的API URL
- * 解决Mixed Content问题：HTTPS页面访问HTTPS API，HTTP页面访问HTTP API
+ * HTTPS环境下使用后端代理，HTTP环境下直接访问外部API
  */
 function getProtocolAdaptedUrl(baseUrl) {
     const protocol = window.location.protocol;
+
     if (protocol === 'https:' && baseUrl.startsWith('http://')) {
-        const httpsUrl = baseUrl.replace('http://', 'https://');
-        console.log(`协议适配: ${baseUrl} -> ${httpsUrl}`);
-        return httpsUrl;
+        // HTTPS环境下使用后端代理端点
+        if (baseUrl.includes('action=stats')) {
+            return '/api/external/stats';
+        } else if (baseUrl.includes('action=getVersion')) {
+            return '/api/external/version';
+        } else if (baseUrl.includes('action=getUpdateInfo')) {
+            return '/api/external/update-info';
+        }
+        console.log(`HTTPS环境下使用后端代理: ${baseUrl}`);
+        return null; // 未知的外部API
     }
-    return baseUrl;
+
+    return baseUrl; // HTTP环境下直接使用原URL
 }
 
 /**
@@ -9453,7 +9462,8 @@ function getProtocolAdaptedUrl(baseUrl) {
  */
 function checkHttpsEnvironment() {
     if (window.location.protocol === 'https:') {
-        console.log('检测到HTTPS环境，将自动适配API协议以避免Mixed Content问题');
+        console.log('检测到HTTPS环境，将通过后端代理访问外部统计服务');
+        console.log('这样可以避免Mixed Content安全策略限制');
     }
 }
 
@@ -9470,6 +9480,11 @@ async function loadProjectUsers() {
 
         // 使用协议适配的URL，解决Mixed Content问题
         const apiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
+
+        // 检查URL是否有效
+        if (!apiUrl) {
+            throw new Error('无法获取有效的API URL');
+        }
 
         const response = await fetch(apiUrl, {
             signal: controller.signal,
@@ -9514,55 +9529,18 @@ async function loadProjectUsers() {
         } else if (error.message.includes('CORS')) {
             totalUsersElement.textContent = '跨域限制';
         } else if (error.message.includes('Failed to fetch')) {
-            // 检查是否是 Mixed Content 问题
-            if (window.location.protocol === 'https:') {
-                totalUsersElement.textContent = '需要HTTPS';
-                totalUsersElement.title = '由于Mixed Content安全策略，统计服务需要HTTPS访问';
-            } else {
-                totalUsersElement.textContent = '网络异常';
-            }
+            totalUsersElement.textContent = '网络异常';
+            totalUsersElement.title = '无法连接到统计服务';
+        } else if (error.message.includes('无法获取有效的API URL')) {
+            totalUsersElement.textContent = 'API异常';
+            totalUsersElement.title = '统计服务配置异常';
         } else {
             totalUsersElement.textContent = '暂无数据';
         }
-
-        // 尝试使用本地统计作为备选方案
-        await loadLocalUserStats();
     }
 }
 
-/**
- * 加载本地用户统计（备选方案）
- */
-async function loadLocalUserStats() {
-    try {
-        const response = await fetch(`${apiBase}/admin/data/users`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            const userCount = data.users ? data.users.length : 0;
-
-            if (userCount > 0) {
-                document.getElementById('totalUsers').textContent = `${userCount}+`;
-
-                // 添加本地标识
-                const usersElement = document.getElementById('projectUsers');
-                if (usersElement) {
-                    usersElement.title = '本地用户统计';
-                    usersElement.classList.remove('bg-primary');
-                    usersElement.classList.add('bg-info');
-                }
-            }
-        }
-    } catch (error) {
-        console.debug('本地统计也无法获取:', error.message);
-        // 最终降级：显示静态信息
-        document.getElementById('totalUsers').textContent = '---';
-    }
-}
+// 本地统计备选方案已移除，只使用网络统计
 
 /**
  * 启动项目使用人数定时刷新
@@ -9584,6 +9562,11 @@ async function showProjectStats() {
     try {
         // 使用协议适配的URL，解决Mixed Content问题
         const statsApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
+
+        // 检查URL是否有效
+        if (!statsApiUrl) {
+            throw new Error('无法获取有效的API URL');
+        }
 
         const response = await fetch(statsApiUrl);
         const data = await response.json();
@@ -10567,6 +10550,12 @@ async function loadSystemVersion() {
         // 使用协议适配的URL，解决Mixed Content问题
         const versionApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getVersion');
 
+        // 检查URL是否有效
+        if (!versionApiUrl) {
+            console.log('无法获取版本检查API URL，使用本地版本');
+            return;
+        }
+
         const response = await fetch(versionApiUrl);
         const result = await response.json();
 
@@ -10586,9 +10575,7 @@ async function loadSystemVersion() {
         console.error('获取版本号失败:', error);
         // 版本号已经从本地文件设置了，不需要修改
         // 只是远程版本检查失败，不影响本地版本显示
-        if (error.message.includes('Failed to fetch') && window.location.protocol === 'https:') {
-            console.warn('由于Mixed Content安全策略，无法检查远程版本更新');
-        }
+        console.warn('无法检查远程版本更新，将继续使用本地版本');
     }
 }
 
@@ -10628,6 +10615,12 @@ async function getUpdateInfo() {
     try {
         // 使用协议适配的URL，解决Mixed Content问题
         const updateApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo');
+
+        // 检查URL是否有效
+        if (!updateApiUrl) {
+            console.log('无法获取更新信息API URL');
+            return null;
+        }
 
         const response = await fetch(updateApiUrl);
         const result = await response.json();
