@@ -168,7 +168,7 @@ jobs:
           echo "final_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
 
       - name: 🔑 Log in to Docker Hub
-        if: github.event.inputs.push_to_registry != 'false'
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.push_to_registry != 'false')
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -182,7 +182,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event.inputs.push_to_registry != 'false' }}
+          push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.push_to_registry != 'false') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -201,7 +201,7 @@ jobs:
           echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-          echo "- **Push**: ${{ github.event.inputs.push_to_registry != 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Push**: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.push_to_registry != 'false') }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             echo "- **Status**: ✅ Build successful" >> $GITHUB_STEP_SUMMARY
           else
@@ -209,7 +209,8 @@ jobs:
           fi
 
       - name: 🔍 Run Trivy vulnerability scanner
-        if: github.event.inputs.push_to_registry != 'false'
+        id: trivy-scan
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.push_to_registry != 'false')
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-info.outputs.final_version }}
@@ -218,7 +219,7 @@ jobs:
         continue-on-error: true
 
       - name: 📊 Upload Trivy scan results to GitHub Security tab
-        if: github.event.inputs.push_to_registry != 'false'
+        if: steps.trivy-scan.outcome == 'success' && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
@@ -237,9 +238,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 📋 Generate changelog
+      - name: 📋 Generate changelog and build info
         id: changelog
         run: |
+          # 生成构建时间
+          BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+
           # 获取上一个标签
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
@@ -282,9 +287,10 @@ jobs:
             ```
 
             ### 📊 构建信息
-            - **构建时间**: ${{ github.run_id }}
+            - **构建时间**: ${{ steps.changelog.outputs.build_time }}
+            - **运行ID**: ${{ github.run_id }}
             - **提交**: ${{ github.sha }}
-            - **分支**: ${{ github.ref_name }}
+            - **标签**: ${{ github.ref_name }}
 
             $(cat changelog.md)
           draft: false
