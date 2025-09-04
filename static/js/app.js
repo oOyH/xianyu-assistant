@@ -2027,6 +2027,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isAuthenticated = await checkAuth();
     if (!isAuthenticated) return;
 
+    // 检查HTTPS环境
+    checkHttpsEnvironment();
+
     // 加载系统版本号
     loadSystemVersion();
 
@@ -9432,6 +9435,29 @@ async function loadQQReplySecretKey() {
 // ================================
 
 /**
+ * 获取适配当前协议的API URL
+ * 解决Mixed Content问题：HTTPS页面访问HTTPS API，HTTP页面访问HTTP API
+ */
+function getProtocolAdaptedUrl(baseUrl) {
+    const protocol = window.location.protocol;
+    if (protocol === 'https:' && baseUrl.startsWith('http://')) {
+        const httpsUrl = baseUrl.replace('http://', 'https://');
+        console.log(`协议适配: ${baseUrl} -> ${httpsUrl}`);
+        return httpsUrl;
+    }
+    return baseUrl;
+}
+
+/**
+ * 检查是否在HTTPS环境中，并显示相应提示
+ */
+function checkHttpsEnvironment() {
+    if (window.location.protocol === 'https:') {
+        console.log('检测到HTTPS环境，将自动适配API协议以避免Mixed Content问题');
+    }
+}
+
+/**
  * 加载项目使用人数
  */
 async function loadProjectUsers() {
@@ -9442,7 +9468,10 @@ async function loadProjectUsers() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const response = await fetch('http://xianyu.zhinianblog.cn/?action=stats', {
+        // 使用协议适配的URL，解决Mixed Content问题
+        const apiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
+
+        const response = await fetch(apiUrl, {
             signal: controller.signal,
             mode: 'cors',
             headers: {
@@ -9485,7 +9514,13 @@ async function loadProjectUsers() {
         } else if (error.message.includes('CORS')) {
             totalUsersElement.textContent = '跨域限制';
         } else if (error.message.includes('Failed to fetch')) {
-            totalUsersElement.textContent = '网络异常';
+            // 检查是否是 Mixed Content 问题
+            if (window.location.protocol === 'https:') {
+                totalUsersElement.textContent = '需要HTTPS';
+                totalUsersElement.title = '由于Mixed Content安全策略，统计服务需要HTTPS访问';
+            } else {
+                totalUsersElement.textContent = '网络异常';
+            }
         } else {
             totalUsersElement.textContent = '暂无数据';
         }
@@ -9547,7 +9582,10 @@ function startProjectUsersRefresh() {
  */
 async function showProjectStats() {
     try {
-        const response = await fetch('http://xianyu.zhinianblog.cn/?action=stats');
+        // 使用协议适配的URL，解决Mixed Content问题
+        const statsApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
+
+        const response = await fetch(statsApiUrl);
         const data = await response.json();
 
         if (data.error) {
@@ -10526,7 +10564,10 @@ async function loadSystemVersion() {
         document.getElementById('versionNumber').textContent = currentSystemVersion;
 
         // 获取远程版本并检查更新
-        const response = await fetch('http://xianyu.zhinianblog.cn/index.php?action=getVersion');
+        // 使用协议适配的URL，解决Mixed Content问题
+        const versionApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getVersion');
+
+        const response = await fetch(versionApiUrl);
         const result = await response.json();
 
         if (result.error) {
@@ -10543,7 +10584,11 @@ async function loadSystemVersion() {
 
     } catch (error) {
         console.error('获取版本号失败:', error);
-        document.getElementById('versionNumber').textContent = '未知';
+        // 版本号已经从本地文件设置了，不需要修改
+        // 只是远程版本检查失败，不影响本地版本显示
+        if (error.message.includes('Failed to fetch') && window.location.protocol === 'https:') {
+            console.warn('由于Mixed Content安全策略，无法检查远程版本更新');
+        }
     }
 }
 
@@ -10581,7 +10626,10 @@ function showUpdateAvailable(newVersion) {
  */
 async function getUpdateInfo() {
     try {
-        const response = await fetch('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo');
+        // 使用协议适配的URL，解决Mixed Content问题
+        const updateApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo');
+
+        const response = await fetch(updateApiUrl);
         const result = await response.json();
 
         if (result.error) {
