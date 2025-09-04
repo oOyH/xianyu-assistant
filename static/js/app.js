@@ -9481,6 +9481,16 @@ async function loadProjectUsers() {
         // 使用协议适配的URL，解决Mixed Content问题
         const apiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
 
+        console.log('统计请求详情:', {
+            protocol: window.location.protocol,
+            origin: location.origin,
+            apiBase: apiBase,
+            originalUrl: 'http://xianyu.zhinianblog.cn/?action=stats',
+            adaptedUrl: apiUrl,
+            finalUrl: apiUrl.startsWith('/') ? apiBase + apiUrl : apiUrl,
+            isHttps: window.location.protocol === 'https:'
+        });
+
         // 检查URL是否有效
         if (!apiUrl) {
             throw new Error('无法获取有效的API URL');
@@ -9496,11 +9506,20 @@ async function loadProjectUsers() {
 
         clearTimeout(timeoutId);
 
+        console.log('统计请求响应:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            url: response.url,
+            headers: Object.fromEntries(response.headers.entries())
+        });
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const result = await response.json();
+        console.log('统计数据结果:', result);
 
         if (result.error) {
             console.warn('远程统计服务返回错误:', result.error);
