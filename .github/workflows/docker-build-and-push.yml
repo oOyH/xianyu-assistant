@@ -5,13 +5,14 @@ on:
     branches:
       - main
       - master
-    tags:
-      - 'v*'
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       push_to_registry:
@@ -134,8 +135,8 @@ jobs:
   docker-build-push:
     name: 🐳 Build and Push Docker Image
     runs-on: ubuntu-latest
-    # 移除依赖，允许并行执行
-    if: always()
+    # 只在推送事件或手动触发时运行
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     
     steps:
       - name: 📥 Checkout code

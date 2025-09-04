@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, F
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Tuple, Optional, Dict, Any
 from pathlib import Path
@@ -297,6 +298,15 @@ app = FastAPI(
     description="闲鱼自动回复系统API",
     docs_url="/docs",
     redoc_url="/redoc"
+)
+
+# 配置CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有源，生产环境建议指定具体域名
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有HTTP方法
+    allow_headers=["*"],  # 允许所有头部
 )
 
 # 初始化文件日志收集器
