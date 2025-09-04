@@ -5,18 +5,8 @@ on:
     branches:
       - main
       - master
-      - develop
     tags:
       - 'v*'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
-  pull_request:
-    branches:
-      - main
-      - master
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -157,11 +147,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
           labels: |
             org.opencontainers.image.title=闲鱼自动回复系统
             org.opencontainers.image.description=企业级多用户闲鱼自动回复和管理系统
@@ -179,28 +166,23 @@ jobs:
           echo "Build metadata:"
           echo "- Version: ${{ steps.meta.outputs.version }}"
           echo "- Tags: ${{ steps.meta.outputs.tags }}"
-          echo "- Labels: ${{ steps.meta.outputs.labels }}"
           echo "- GitHub ref: ${{ github.ref }}"
           echo "- GitHub ref name: ${{ github.ref_name }}"
 
           # 确定最终使用的版本号
-          if [ -n "${{ steps.meta.outputs.version }}" ]; then
-            FINAL_VERSION="${{ steps.meta.outputs.version }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             FINAL_VERSION="${{ github.ref_name }}"
           elif [[ "${{ github.ref }}" == refs/heads/main ]] || [[ "${{ github.ref }}" == refs/heads/master ]]; then
             FINAL_VERSION="latest"
-          elif [[ "${{ github.ref }}" == refs/heads/develop ]]; then
-            FINAL_VERSION="dev"
           else
-            FINAL_VERSION="${{ github.ref_name }}-${{ github.sha }}"
+            FINAL_VERSION="${{ github.ref_name }}"
           fi
 
           echo "Final version to use: $FINAL_VERSION"
           echo "final_version=$FINAL_VERSION" >> $GITHUB_OUTPUT
 
       - name: 🔑 Log in to Docker Hub
-        if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false')
+        if: github.event.inputs.push_to_registry != 'false'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -214,15 +196,11 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' && github.event.inputs.push_to_registry != 'false' }}
+          push: ${{ github.event.inputs.push_to_registry != 'false' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=gha
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: |
-            type=gha,mode=max
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VCS_REF=${{ github.sha }}
@@ -237,7 +215,7 @@ jobs:
           echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-          echo "- **Push**: ${{ github.event_name != 'pull_request' && github.event.inputs.push_to_registry != 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Push**: ${{ github.event.inputs.push_to_registry != 'false' }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             echo "- **Status**: ✅ Build successful" >> $GITHUB_STEP_SUMMARY
           else
@@ -245,16 +223,16 @@ jobs:
           fi
 
       - name: 🔍 Run Trivy vulnerability scanner
-        if: github.event_name != 'pull_request'
+        if: github.event.inputs.push_to_registry != 'false'
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version-info.outputs.final_version }}
           format: 'sarif'
           output: 'trivy-results.sarif'
         continue-on-error: true
 
       - name: 📊 Upload Trivy scan results to GitHub Security tab
-        if: github.event_name != 'pull_request'
+        if: github.event.inputs.push_to_registry != 'false'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'

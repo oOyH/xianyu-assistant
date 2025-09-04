@@ -9376,29 +9376,97 @@ async function loadQQReplySecretKey() {
  * 加载项目使用人数
  */
 async function loadProjectUsers() {
+    const totalUsersElement = document.getElementById('totalUsers');
+
     try {
-        const response = await fetch('http://xianyu.zhinianblog.cn/?action=stats');
+        // 设置超时时间为5秒
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('http://xianyu.zhinianblog.cn/?action=stats', {
+            signal: controller.signal,
+            mode: 'cors',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
         const result = await response.json();
 
         if (result.error) {
-            console.error('获取项目使用人数失败:', result.error);
-            document.getElementById('totalUsers').textContent = '获取失败';
+            console.warn('远程统计服务返回错误:', result.error);
+            totalUsersElement.textContent = '暂无数据';
             return;
         }
 
         const totalUsers = result.total_users || 0;
-        document.getElementById('totalUsers').textContent = totalUsers;
+        totalUsersElement.textContent = totalUsers;
 
         // 如果用户数量大于0，可以添加一些视觉效果
         if (totalUsers > 0) {
             const usersElement = document.getElementById('projectUsers');
-            usersElement.classList.remove('bg-primary');
-            usersElement.classList.add('bg-success');
+            if (usersElement) {
+                usersElement.classList.remove('bg-primary');
+                usersElement.classList.add('bg-success');
+            }
         }
 
     } catch (error) {
-        console.error('获取项目使用人数失败:', error);
-        document.getElementById('totalUsers').textContent = '网络错误';
+        console.warn('获取项目使用人数失败:', error.message);
+
+        // 根据错误类型提供不同的提示
+        if (error.name === 'AbortError') {
+            totalUsersElement.textContent = '请求超时';
+        } else if (error.message.includes('CORS')) {
+            totalUsersElement.textContent = '跨域限制';
+        } else if (error.message.includes('Failed to fetch')) {
+            totalUsersElement.textContent = '网络异常';
+        } else {
+            totalUsersElement.textContent = '暂无数据';
+        }
+
+        // 尝试使用本地统计作为备选方案
+        await loadLocalUserStats();
+    }
+}
+
+/**
+ * 加载本地用户统计（备选方案）
+ */
+async function loadLocalUserStats() {
+    try {
+        const response = await fetch(`${apiBase}/admin/data/users`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const userCount = data.users ? data.users.length : 0;
+
+            if (userCount > 0) {
+                document.getElementById('totalUsers').textContent = `${userCount}+`;
+
+                // 添加本地标识
+                const usersElement = document.getElementById('projectUsers');
+                if (usersElement) {
+                    usersElement.title = '本地用户统计';
+                    usersElement.classList.remove('bg-primary');
+                    usersElement.classList.add('bg-info');
+                }
+            }
+        }
+    } catch (error) {
+        console.debug('本地统计也无法获取:', error.message);
+        // 最终降级：显示静态信息
+        document.getElementById('totalUsers').textContent = '---';
     }
 }
 
@@ -9409,10 +9477,10 @@ function startProjectUsersRefresh() {
     // 立即加载一次
     loadProjectUsers();
 
-    // 每5分钟刷新一次
+    // 每10分钟刷新一次（减少网络请求频率）
     setInterval(() => {
         loadProjectUsers();
-    }, 5 * 60 * 1000); // 5分钟 = 5 * 60 * 1000毫秒
+    }, 10 * 60 * 1000); // 10分钟 = 10 * 60 * 1000毫秒
 }
 
 /**
