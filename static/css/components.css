@@ -1,115 +1,800 @@
 /* ================================
-   通用卡片样式 - 适用于所有菜单的卡片
+   Liquid Glass 组件系统 - 卡片、按钮、表单等
    ================================ */
 
-/* 旋转动画 */
+/* 全局Liquid Glass覆盖 - 确保样式优先级 */
+* {
+  box-sizing: border-box;
+}
+
+/* 确保所有卡片都使用Liquid Glass效果 */
+.card,
+.stat-card,
+.keyword-container,
+.content-section .card,
+.modal-content,
+.table-container {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(25px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-2xl) !important;
+  box-shadow: var(--shadow-md) !important;
+  transition: all var(--transition-fluid) !important;
+}
+
+/* 确保所有按钮都使用统一样式 */
+.btn {
+  border-radius: var(--radius-2xl) !important;
+  transition: all var(--transition-quick) !important;
+  font-weight: 600 !important;
+}
+
+/* 确保所有表单控件都使用Liquid Glass效果 */
+.form-control,
+.form-select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(10px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-2xl) !important;
+  color: var(--text-color) !important;
+  transition: all var(--transition-fluid) !important;
+}
+
+/* 核心动画 */
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
 
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .spin {
     animation: spin 1s linear infinite;
 }
+
+/* 卡片组件 - Liquid Glass 核心容器 */
 .card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-fluid);
   margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
 }
 
 .card-header {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  color: white;
+  background: linear-gradient(135deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 80%, #000 20%));
+  color: var(--header-text) !important;
   border: none;
-  border-radius: 16px 16px 0 0 !important;
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   font-weight: 600;
-  font-size: 1.1rem;
-  padding: 1.25rem 1.5rem;
+  font-size: 1.125rem;
+  padding: 1.5rem 2rem;
 }
 
 .card-body {
-  padding: 1.5rem;
+  padding: 2rem;
+  color: var(--card-text) !important;
 }
 
+.card-body * {
+  color: inherit;
+}
+
+.card-body .text-muted {
+  color: var(--text-color-muted) !important;
+}
+
+/* 按钮组件 - Liquid Glass 交互元素 */
 .btn {
-  border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  padding: 0.5rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  border-radius: var(--radius-2xl);
+  cursor: pointer;
+  transition: all var(--transition-quick);
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
 }
 
 .btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  filter: brightness(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.95);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  border: none;
+  background: var(--accent-color);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-success {
-  background: linear-gradient(135deg, var(--success-color), #059669);
-  border: none;
+  background: var(--success-color);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--danger-color), #dc2626);
-  border: none;
+  background: var(--danger-color);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
+.btn-warning {
+  background: var(--warning-color);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  color: var(--text-color);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--glass-bg) 80%, var(--accent-color) 20%);
+}
+
+/* Outline 按钮样式 - 确保在深色主题下可见 */
 .btn-outline-primary {
-  border: 2px solid var(--primary-color);
-  color: var(--primary-color);
+  border: 2px solid var(--accent-color) !important;
+  color: var(--accent-color) !important;
+  background: transparent !important;
 }
 
 .btn-outline-primary:hover {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
+  background: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: white !important;
 }
 
 .btn-outline-success {
-  border: 2px solid var(--success-color);
-  color: var(--success-color);
+  border: 2px solid var(--success-color) !important;
+  color: var(--success-color) !important;
+  background: transparent !important;
 }
 
 .btn-outline-success:hover {
-  background: var(--success-color);
-  border-color: var(--success-color);
-  color: white;
-}
-
-.btn-outline-info {
-  border: 2px solid #0dcaf0;
-  color: #0dcaf0;
-}
-
-.btn-outline-info:hover {
-  background: #0dcaf0;
-  border-color: #0dcaf0;
-  color: white;
+  background: var(--success-color) !important;
+  border-color: var(--success-color) !important;
+  color: white !important;
 }
 
 .btn-outline-danger {
-  border: 2px solid var(--danger-color);
-  color: var(--danger-color);
+  border: 2px solid var(--danger-color) !important;
+  color: var(--danger-color) !important;
+  background: transparent !important;
 }
 
 .btn-outline-danger:hover {
-  background: var(--danger-color);
-  border-color: var(--danger-color);
+  background: var(--danger-color) !important;
+  border-color: var(--danger-color) !important;
+  color: white !important;
+}
+
+.btn-outline-warning {
+  border: 2px solid var(--warning-color) !important;
+  color: var(--warning-color) !important;
+  background: transparent !important;
+}
+
+.btn-outline-warning:hover {
+  background: var(--warning-color) !important;
+  border-color: var(--warning-color) !important;
+  color: white !important;
+}
+
+.btn-outline-info {
+  border: 2px solid var(--accent-color) !important;
+  color: var(--accent-color) !important;
+  background: transparent !important;
+}
+
+.btn-outline-info:hover {
+  background: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: white !important;
+}
+
+.btn-outline-secondary {
+  border: 2px solid var(--text-color-secondary) !important;
+  color: var(--text-color-secondary) !important;
+  background: transparent !important;
+}
+
+.btn-outline-secondary:hover {
+  background: var(--text-color-secondary) !important;
+  border-color: var(--text-color-secondary) !important;
+  color: var(--bg-color) !important;
+}
+
+/* 小尺寸outline按钮增强对比度 */
+.btn-sm.btn-outline-primary,
+.btn-sm.btn-outline-success,
+.btn-sm.btn-outline-info,
+.btn-sm.btn-outline-warning,
+.btn-sm.btn-outline-danger {
+  font-weight: 700 !important;
+  border-width: 2px !important;
+}
+
+/* 深色主题下的outline按钮增强 */
+body.dark-mode .btn-outline-primary,
+body.dark-mode .btn-outline-success,
+body.dark-mode .btn-outline-info,
+body.dark-mode .btn-outline-warning,
+body.dark-mode .btn-outline-danger {
+  background: color-mix(in srgb, var(--glass-bg) 80%, transparent) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  font-weight: 700 !important;
+}
+
+/* 确保按钮组中的outline按钮正确显示 */
+.btn-group .btn-outline-primary,
+.btn-group .btn-outline-success,
+.btn-group .btn-outline-info {
+  border-width: 2px !important;
+  font-weight: 600 !important;
+}
+
+/* 表单组件 - Liquid Glass 输入元素 */
+.form-control, .form-select {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  color: var(--text-color);
+  transition: all var(--transition-fluid);
+  width: 100%;
+}
+
+.form-control:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-color) 20%, transparent);
+  transform: translateY(-1px);
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* 文本域 */
+textarea.form-control {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* 选择框 */
+.form-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* 主题模式选择器 - 集成到设置界面 */
+.theme-mode-selector {
+  display: flex;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border-radius: var(--radius-2xl);
+  padding: 0.5rem;
+  border: 1px solid var(--glass-border);
+  gap: 0.5rem;
+}
+
+.theme-mode-selector button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 1rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-2xl);
+  cursor: pointer;
+  color: var(--text-color-secondary);
+  transition: all var(--transition-quick);
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.theme-mode-selector button:not(.active):hover {
+  background-color: color-mix(in srgb, var(--text-color) 10%, transparent);
+  transform: translateY(-1px);
+  color: var(--text-color);
+}
+
+.theme-mode-selector button.active {
+  background-color: var(--accent-color);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-mode-selector button i {
+  font-size: 1.25rem;
+}
+
+.theme-mode-selector button span {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* 模态框 - Liquid Glass 弹窗 */
+.modal-content {
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  background: linear-gradient(135deg, var(--accent-color), color-mix(in srgb, var(--accent-color) 80%, #000 20%));
+  color: white;
+  border: none;
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  padding: 1.5rem 2rem;
+}
+
+.modal-body {
+  padding: 2rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--glass-border);
+  padding: 1.5rem 2rem;
+  border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
+}
+
+/* 表格 - Liquid Glass 数据展示 */
+.table-container {
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.table {
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.table th {
+  background: color-mix(in srgb, var(--glass-bg) 50%, transparent);
+  color: var(--text-color) !important;
+  font-weight: 600;
+  border: none;
+  padding: 1rem 1.5rem;
+}
+
+.table td {
+  border: none;
+  padding: 1rem 1.5rem;
+  color: var(--text-color) !important;
+  border-top: 1px solid var(--glass-border);
+}
+
+.table td .text-muted {
+  color: var(--text-color-muted) !important;
+}
+
+.table td .badge {
+  color: white !important;
+}
+
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+
+/* 徽章 - Liquid Glass 状态指示器 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--accent-color);
   color: white;
 }
+
+.badge.bg-success {
+  background: var(--success-color) !important;
+}
+
+.badge.bg-danger {
+  background: var(--danger-color) !important;
+}
+
+.badge.bg-warning {
+  background: var(--warning-color) !important;
+}
+
+.badge.bg-secondary {
+  background: var(--glass-bg) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--glass-border);
+}
+
+/* Toast 通知 - Liquid Glass 消息提示 */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toast {
+  min-width: 300px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--glass-border);
+  padding: 1rem 1.5rem;
+  animation: toast-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 加载状态 - Liquid Glass 加载指示器 */
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid color-mix(in srgb, var(--glass-bg) 50%, transparent);
+  border-top-color: var(--accent-color);
+  border-radius: var(--radius-full);
+  animation: spin 1s linear infinite;
+}
+
+.spinner-sm {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+/* 空状态 - Liquid Glass 空内容提示 */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text-color-secondary);
+}
+
+.empty-state i {
+  font-size: 3rem;
+  opacity: 0.5;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.empty-state h3 {
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+/* 版本信息 - Liquid Glass 版本显示 */
+.version-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-color-secondary);
+}
+
+.version-info .badge {
+  font-size: 0.75rem;
+}
+
+/* 文本颜色修复 - 确保在不同主题下的可读性 */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-color) !important;
+}
+
+p, span, div, li, td, th {
+  color: var(--text-color);
+}
+
+.text-muted,
+.text-secondary,
+small {
+  color: var(--text-color-muted) !important;
+}
+
+.text-primary {
+  color: var(--accent-color) !important;
+}
+
+.text-success {
+  color: var(--success-color) !important;
+}
+
+.text-danger {
+  color: var(--danger-color) !important;
+}
+
+.text-warning {
+  color: var(--warning-color) !important;
+}
+
+/* 确保白色文本在深色背景上可见 */
+.text-white,
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-warning,
+.badge,
+.card-header {
+  color: white !important;
+}
+
+/* 确保深色文本在浅色背景上可见 */
+.text-dark {
+  color: var(--text-color) !important;
+}
+
+/* 链接颜色 */
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+a:hover {
+  color: color-mix(in srgb, var(--accent-color) 80%, #000 20%);
+  text-decoration: underline;
+}
+
+/* 表单标签 */
+.form-label,
+label {
+  color: var(--text-color) !important;
+  font-weight: 600;
+}
+
+/* 占位符文本 */
+::placeholder {
+  color: var(--text-color-muted) !important;
+  opacity: 0.7;
+}
+
+/* Bootstrap 覆盖 - 确保文本颜色正确 */
+.card-title,
+.card-text {
+  color: var(--text-color) !important;
+}
+
+.list-group-item {
+  background: var(--glass-bg) !important;
+  color: var(--text-color) !important;
+  border-color: var(--glass-border) !important;
+}
+
+.dropdown-menu {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(25px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-2xl) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dropdown-item {
+  color: var(--text-color) !important;
+}
+
+.dropdown-item:hover {
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent) !important;
+  color: var(--text-color) !important;
+}
+
+/* 模态框文本 */
+.modal-title {
+  color: var(--header-text) !important;
+}
+
+.modal-body,
+.modal-footer {
+  color: var(--text-color) !important;
+}
+
+/* 导航栏文本 */
+.navbar-brand,
+.navbar-nav .nav-link {
+  color: var(--text-color) !important;
+}
+
+/* 面包屑导航 */
+.breadcrumb-item {
+  color: var(--text-color-secondary) !important;
+}
+
+.breadcrumb-item.active {
+  color: var(--text-color) !important;
+}
+
+/* 分页组件 */
+.page-link {
+  color: var(--accent-color) !important;
+  background: var(--glass-bg) !important;
+  border-color: var(--glass-border) !important;
+}
+
+.page-link:hover {
+  color: var(--text-color) !important;
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent) !important;
+}
+
+/* 进度条 */
+.progress {
+  background: var(--glass-bg) !important;
+}
+
+/* 工具提示 */
+.tooltip-inner {
+  background: var(--glass-bg) !important;
+  color: var(--text-color) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* 商品搜索说明文字修复 */
+.alert-info {
+  background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg)) !important;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 30%, transparent) !important;
+  color: var(--text-color) !important;
+}
+
+.alert-info strong {
+  color: var(--text-color) !important;
+}
+
+.alert-info ul,
+.alert-info li {
+  color: var(--text-color) !important;
+}
+
+/* 搜索统计信息文字修复 */
+#itemSearchStats,
+.text-muted {
+  color: var(--text-color-muted) !important;
+}
+
+/* 卡片标题说明文字修复 */
+.card-header h5 {
+  color: var(--header-text) !important;
+}
+
+/* 表单说明文字修复 */
+.form-text,
+.form-text.text-muted,
+small.text-muted {
+  color: var(--text-color-muted) !important;
+}
+
+/* 强制覆盖Bootstrap和其他样式 */
+.card,
+.stat-card,
+.content-section .card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(25px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-2xl) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-success,
+.btn-danger,
+.btn-warning {
+  border-radius: var(--radius-2xl) !important;
+  transition: all var(--transition-quick) !important;
+}
+
+.form-control,
+.form-select,
+input.form-control,
+select.form-select,
+textarea.form-control {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(10px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-2xl) !important;
+  color: var(--text-color) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-color) 20%, transparent) !important;
+}
+
+/* 确保主题模式选择器正常显示 */
+.theme-mode-selector {
+  z-index: 1 !important;
+}
+
+/* 旧的重复样式已移除，使用上面的统一outline按钮样式 */
 
 /* ================================
    通用表格样式 - 适用于所有菜单的表格

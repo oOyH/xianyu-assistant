@@ -1,35 +1,52 @@
 /* ================================
-   通用布局 - 侧边栏和导航
+   Liquid Glass 布局系统 - 侧边栏和导航
    ================================ */
 .sidebar {
   position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  width: 250px;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: white;
+  top: 1rem;
+  left: 1rem;
+  height: calc(100vh - 2rem);
+  width: 280px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  color: var(--text-color);
   z-index: 1000;
-  transition: all 0.3s ease;
-  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  transition: all var(--transition-fluid);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .sidebar-header {
-  padding: 1.5rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 2rem 1.5rem 1.5rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
+  background: color-mix(in srgb, var(--glass-bg) 50%, transparent);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 }
 
 .sidebar-brand {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-color);
   text-decoration: none;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+}
+
+.sidebar-brand i {
+  font-size: 1.75rem;
+  color: var(--accent-color);
+}
+
+.sidebar-brand:hover {
+  color: var(--accent-color);
+  text-decoration: none;
 }
 
 .sidebar-nav {
@@ -72,23 +89,47 @@
 .nav-link {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1.5rem;
-  color: rgba(255,255,255,0.8);
+  padding: 0.875rem 1.5rem;
+  margin: 0.25rem 1rem;
+  color: var(--text-color-secondary) !important;
   text-decoration: none;
-  transition: all 0.3s ease;
-  border-left: 3px solid transparent;
+  transition: all var(--transition-fluid);
+  border-radius: var(--radius-2xl);
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-link::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--glass-bg);
+  opacity: 0;
+  transition: opacity var(--transition-quick);
+  border-radius: var(--radius-2xl);
 }
 
 .nav-link:hover {
-  color: white;
-  background: rgba(255,255,255,0.1);
-  border-left-color: rgba(255,255,255,0.5);
+  color: var(--text-color) !important;
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.nav-link:hover::before {
+  opacity: 0.5;
 }
 
 .nav-link.active {
-  color: white;
-  background: rgba(255,255,255,0.15);
-  border-left-color: white;
+  color: var(--accent-color) !important;
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+  font-weight: 600;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-link.active::before {
+  opacity: 0;
 }
 
 .nav-link i {
@@ -111,20 +152,27 @@
 
 /* 主内容区域 */
 .main-content {
-  margin-left: 250px;
+  margin-left: 300px;
   min-height: 100vh;
-  background: #f8fafc;
+  padding: 1rem 2rem 2rem 1rem;
 }
 
 .content-header {
-  background: white;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  padding: 2rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+  position: sticky;
+  top: 1rem;
+  z-index: 100;
 }
 
 .content-body {
-  padding: 2rem;
+  padding: 0;
 }
 
 /* 响应式设计 */
@@ -149,15 +197,23 @@
 .mobile-toggle {
   display: none;
   position: fixed;
-  top: 1rem;
-  left: 1rem;
+  top: 1.5rem;
+  left: 1.5rem;
   z-index: 1001;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  color: var(--text-color);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  padding: 0.75rem;
   box-shadow: var(--shadow-md);
+  transition: all var(--transition-quick);
+}
+
+.mobile-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 /* 内容区域样式 */

@@ -1,26 +1,102 @@
 /* ================================
-   全局变量和基础样式
+   Liquid Glass 设计系统 - 全局变量
    ================================ */
 :root {
-    --primary-color: #4f46e5;
-    --primary-hover: #4338ca;
-    --primary-light: #6366f1;
-    --secondary-color: #6b7280;
-    --success-color: #10b981;
-    --danger-color: #ef4444;
-    --warning-color: #f59e0b;
-    --light-color: #f9fafb;
-    --dark-color: #1f2937;
-    --border-color: #e5e7eb;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  }
+    /* 字体系统 - Apple San Francisco 风格 */
+    --font-family-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
 
-  body {
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #f8fafc;
+    /* 浅色模式调色板 */
+    --bg-color-light: #f0f2f5;
+    --bg-image-light: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
+    --text-color-light: #1d1d1f;
+    --text-color-secondary-light: #6e6e73;
+    --text-color-muted-light: #8e8e93;
+    --accent-color-light: #007aff;
+    --glass-bg-light: rgba(242, 242, 247, 0.85);
+    --glass-border-light: rgba(255, 255, 255, 0.6);
+    --shadow-color-light: rgba(0, 0, 0, 0.1);
+    --card-text-light: #1d1d1f;
+    --header-text-light: #ffffff;
+
+    /* 深色模式调色板 */
+    --bg-color-dark: #121212;
+    --bg-image-dark: linear-gradient(120deg, #272B30 0%, #121212 100%);
+    --text-color-dark: #f5f5f7;
+    --text-color-secondary-dark: #a1a1a6;
+    --text-color-muted-dark: #8e8e93;
+    --accent-color-dark: #0a84ff;
+    --glass-bg-dark: rgba(28, 28, 30, 0.85);
+    --glass-border-dark: rgba(84, 84, 88, 0.6);
+    --shadow-color-dark: rgba(0, 0, 0, 0.4);
+    --card-text-dark: #f5f5f7;
+    --header-text-dark: #ffffff;
+
+    /* 状态颜色 */
+    --success-color-light: #30d158;
+    --success-color-dark: #32d74b;
+    --danger-color-light: #ff3b30;
+    --danger-color-dark: #ff453a;
+    --warning-color-light: #ff9500;
+    --warning-color-dark: #ff9f0a;
+
+    /* 通用变量 - Liquid Glass 核心 */
+    --radius-2xl: 1.5rem;
+    --radius-full: 9999px;
+    --shadow-sm: 0 2px 4px var(--shadow-color);
+    --shadow-md: 0 4px 12px var(--shadow-color);
+    --shadow-lg: 0 8px 24px var(--shadow-color);
+    --transition-fluid: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    --transition-quick: 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body {
+    /* 默认浅色模式变量 */
+    --bg-color: var(--bg-color-light);
+    --bg-image: var(--bg-image-light);
+    --text-color: var(--text-color-light);
+    --text-color-secondary: var(--text-color-secondary-light);
+    --text-color-muted: var(--text-color-muted-light);
+    --accent-color: var(--accent-color-light);
+    --glass-bg: var(--glass-bg-light);
+    --glass-border: var(--glass-border-light);
+    --shadow-color: var(--shadow-color-light);
+    --card-text: var(--card-text-light);
+    --header-text: var(--header-text-light);
+    --success-color: var(--success-color-light);
+    --danger-color: var(--danger-color-light);
+    --warning-color: var(--warning-color-light);
+
+    /* 基础样式 */
+    font-family: var(--font-family-system);
+    background-color: var(--bg-color);
+    background-image: var(--bg-image);
+    background-attachment: fixed;
+    color: var(--text-color);
     min-height: 100vh;
     padding: 0;
     margin: 0;
-  }
+    transition: background var(--transition-quick);
+}
+
+/* 深色模式 */
+body.dark-mode {
+    --bg-color: var(--bg-color-dark);
+    --bg-image: var(--bg-image-dark);
+    --text-color: var(--text-color-dark);
+    --text-color-secondary: var(--text-color-secondary-dark);
+    --text-color-muted: var(--text-color-muted-dark);
+    --accent-color: var(--accent-color-dark);
+    --glass-bg: var(--glass-bg-dark);
+    --glass-border: var(--glass-border-dark);
+    --shadow-color: var(--shadow-color-dark);
+    --card-text: var(--card-text-dark);
+    --header-text: var(--header-text-dark);
+    --success-color: var(--success-color-dark);
+    --danger-color: var(--danger-color-dark);
+    --warning-color: var(--warning-color-dark);
+}
+
+/* 全局重置 */
+*, *::before, *::after {
+    box-sizing: border-box;
+}

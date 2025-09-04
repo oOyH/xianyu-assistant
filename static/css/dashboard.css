@@ -10,42 +10,46 @@
    【仪表盘菜单】相关样式
    ================================ */
 .stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-color);
-  transition: all 0.3s ease;
+  background: var(--glass-bg);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border-radius: var(--radius-2xl);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--glass-border);
+  transition: all var(--transition-fluid);
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: var(--shadow-lg);
 }
 
 .stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-2xl);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .stat-icon.primary {
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--accent-color) 20%, transparent);
+  color: var(--accent-color);
 }
 
 .stat-icon.success {
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--success-color) 20%, transparent);
   color: var(--success-color);
 }
 
 .stat-icon.warning {
-  background: rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--warning-color) 20%, transparent);
   color: var(--warning-color);
 }
 
@@ -57,12 +61,12 @@
 .stat-number {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--dark-color);
+  color: var(--text-color) !important;
   margin-bottom: 0.5rem;
 }
 
 .stat-label {
-  color: var(--secondary-color);
+  color: var(--text-color-secondary) !important;
   font-size: 0.875rem;
   font-weight: 500;
 }
