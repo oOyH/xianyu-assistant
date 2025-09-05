@@ -19,7 +19,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/xianyu-auto-reply
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/xianyu
 
 jobs:
   # 代码质量检查

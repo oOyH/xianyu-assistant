@@ -3097,6 +3097,486 @@ def update_delivery_rule(rule_id: int, rule_data: dict, current_user: Dict[str, 
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/cards/{card_id}/test")
+def test_card(card_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """测试卡券功能"""
+    try:
+        from db_manager import db_manager
+        import requests
+        import json
+        import random
+        from datetime import datetime
+
+        user_id = current_user['user_id']
+        card = db_manager.get_card_by_id(card_id, user_id)
+
+        if not card:
+            raise HTTPException(status_code=404, detail="卡券不存在")
+
+        if not card['enabled']:
+            raise HTTPException(status_code=400, detail="卡券已禁用，无法测试")
+
+        result = {
+            "card_name": card['name'],
+            "card_type": card['type'],
+            "test_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "success": False,
+            "content": None,
+            "error": None
+        }
+
+        try:
+            if card['type'] == 'text':
+                # 固定文字类型
+                result['content'] = card['text_content']
+                result['success'] = True
+
+            elif card['type'] == 'data':
+                # 批量数据类型 - 随机选择一条数据进行测试（不消费）
+                if card['data_content']:
+                    lines = [line.strip() for line in card['data_content'].split('\n') if line.strip()]
+                    if lines:
+                        selected_line = random.choice(lines)
+                        result['content'] = selected_line
+                        result['success'] = True
+                        result['total_data_count'] = len(lines)
+                        result['selected_line_index'] = lines.index(selected_line) + 1
+                        result['data_preview'] = lines[:3] if len(lines) > 3 else lines  # 显示前3条作为预览
+
+                        # 检查数据格式一致性
+                        if len(lines) > 1:
+                            first_format = type(selected_line)
+                            all_same_format = all(type(line) == first_format for line in lines[:10])  # 检查前10条
+                            result['data_format_consistent'] = all_same_format
+                            if not all_same_format:
+                                result['warning'] = "数据格式可能不一致"
+                    else:
+                        result['error'] = "批量数据为空"
+                else:
+                    result['error'] = "未配置批量数据内容"
+
+            elif card['type'] == 'image':
+                # 图片类型 - 验证图片URL是否可访问
+                if card['image_url']:
+                    try:
+                        # 验证图片URL是否可访问
+                        img_response = requests.head(card['image_url'], timeout=5)
+                        result['content'] = card['image_url']
+                        result['content_type'] = 'image'
+                        result['image_status_code'] = img_response.status_code
+                        result['image_content_type'] = img_response.headers.get('Content-Type', 'unknown')
+
+                        if img_response.status_code == 200:
+                            result['success'] = True
+                            # 检查是否是图片类型
+                            content_type = img_response.headers.get('Content-Type', '')
+                            if not content_type.startswith('image/'):
+                                result['warning'] = f"URL返回的不是图片类型: {content_type}"
+                        else:
+                            result['error'] = f"图片URL无法访问: HTTP {img_response.status_code}"
+                    except requests.exceptions.Timeout:
+                        result['error'] = "图片URL访问超时"
+                    except requests.exceptions.RequestException as e:
+                        result['error'] = f"图片URL访问失败: {str(e)}"
+                else:
+                    result['error'] = "未配置图片URL"
+
+            elif card['type'] == 'api':
+                # API类型 - 调用API进行测试
+                if card['api_config']:
+                    api_config = card['api_config']
+                    if isinstance(api_config, str):
+                        api_config = json.loads(api_config)
+
+                    url = api_config.get('url')
+                    method = api_config.get('method', 'GET').upper()
+                    headers = api_config.get('headers', {})
+                    params = api_config.get('params', {})
+                    data = api_config.get('data', {})
+
+                    if not url:
+                        result['error'] = "API配置中缺少URL"
+                    else:
+                        # 模拟测试参数
+                        test_params = {
+                            'order_id': 'TEST_ORDER_123',
+                            'item_id': 'TEST_ITEM_456',
+                            'user_id': 'TEST_USER_789',
+                            'spec_name': card.get('spec_name', ''),
+                            'spec_value': card.get('spec_value', '')
+                        }
+
+                        # 替换参数中的占位符
+                        def replace_placeholders(obj):
+                            if isinstance(obj, str):
+                                for key, value in test_params.items():
+                                    obj = obj.replace(f'{{{key}}}', str(value))
+                                return obj
+                            elif isinstance(obj, dict):
+                                return {k: replace_placeholders(v) for k, v in obj.items()}
+                            elif isinstance(obj, list):
+                                return [replace_placeholders(item) for item in obj]
+                            return obj
+
+                        url = replace_placeholders(url)
+                        headers = replace_placeholders(headers)
+                        params = replace_placeholders(params)
+                        data = replace_placeholders(data)
+
+                        # 发送API请求
+                        timeout = 10  # 10秒超时
+                        response = None
+
+                        if method == 'GET':
+                            response = requests.get(url, headers=headers, params=params, timeout=timeout)
+                        elif method == 'POST':
+                            if headers.get('Content-Type') == 'application/json':
+                                response = requests.post(url, headers=headers, json=data, timeout=timeout)
+                            else:
+                                response = requests.post(url, headers=headers, data=data, timeout=timeout)
+                        elif method == 'PUT':
+                            if headers.get('Content-Type') == 'application/json':
+                                response = requests.put(url, headers=headers, json=data, timeout=timeout)
+                            else:
+                                response = requests.put(url, headers=headers, data=data, timeout=timeout)
+
+                        if response:
+                            result['api_status_code'] = response.status_code
+                            result['api_response_time'] = f"{response.elapsed.total_seconds():.2f}s"
+                            result['api_response_headers'] = dict(response.headers)
+                            result['api_request_url'] = response.url
+
+                            if response.status_code == 200:
+                                try:
+                                    # 尝试解析JSON响应
+                                    api_result = response.json()
+                                    result['content'] = json.dumps(api_result, ensure_ascii=False, indent=2)
+                                    result['success'] = True
+                                    result['api_response_type'] = 'JSON'
+                                except:
+                                    # 如果不是JSON，直接返回文本
+                                    result['content'] = response.text[:1000] + ('...' if len(response.text) > 1000 else '')
+                                    result['success'] = True
+                                    result['api_response_type'] = 'TEXT'
+                                    result['api_response_length'] = len(response.text)
+                            else:
+                                result['error'] = f"API请求失败: HTTP {response.status_code}"
+                                result['content'] = response.text[:500] + ('...' if len(response.text) > 500 else '')
+                                # 对于非200状态码，仍然显示一些有用信息
+                                result['api_response_type'] = 'ERROR'
+                        else:
+                            result['error'] = "不支持的HTTP方法"
+                else:
+                    result['error'] = "未配置API参数"
+            else:
+                result['error'] = f"不支持的卡券类型: {card['type']}"
+
+        except requests.exceptions.Timeout:
+            result['error'] = "API请求超时"
+        except requests.exceptions.RequestException as e:
+            result['error'] = f"API请求异常: {str(e)}"
+        except Exception as e:
+            result['error'] = f"测试过程中发生错误: {str(e)}"
+
+        log_with_user('info', f"测试卡券: {card['name']} - {'成功' if result['success'] else '失败'}", current_user)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/delivery-rules/{rule_id}/test")
+def test_delivery_rule(rule_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """测试发货规则功能"""
+    try:
+        from db_manager import db_manager
+        import requests
+        import json
+        import random
+        from datetime import datetime
+
+        user_id = current_user['user_id']
+        rule = db_manager.get_delivery_rule_by_id(rule_id, user_id)
+
+        if not rule:
+            raise HTTPException(status_code=404, detail="发货规则不存在")
+
+        if not rule['enabled']:
+            raise HTTPException(status_code=400, detail="发货规则已禁用，无法测试")
+
+        result = {
+            "rule_name": rule['keyword'],
+            "rule_id": rule_id,
+            "test_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "success": False,
+            "steps": [],
+            "warnings": [],
+            "errors": []
+        }
+
+        # 步骤1：验证发货规则基本信息
+        step1 = {
+            "step": "发货规则验证",
+            "status": "success",
+            "details": {
+                "keyword": rule['keyword'],
+                "card_id": rule['card_id'],
+                "delivery_count": rule.get('delivery_count', 1),
+                "enabled": rule['enabled']
+            }
+        }
+        result['steps'].append(step1)
+
+        # 步骤2：获取关联的卡券信息
+        card = db_manager.get_card_by_id(rule['card_id'], user_id)
+        if not card:
+            result['errors'].append("关联的卡券不存在")
+            return result
+
+        if not card['enabled']:
+            result['warnings'].append("关联的卡券已禁用")
+
+        step2 = {
+            "step": "卡券信息验证",
+            "status": "success" if card['enabled'] else "warning",
+            "details": {
+                "card_name": card['name'],
+                "card_type": card['type'],
+                "card_enabled": card['enabled']
+            }
+        }
+        result['steps'].append(step2)
+
+        # 步骤3：测试卡券内容获取
+        step3 = {
+            "step": "卡券内容测试",
+            "status": "pending",
+            "details": {}
+        }
+
+        try:
+            if card['type'] == 'text':
+                # 固定文字类型
+                if card['text_content']:
+                    step3['details']['content'] = card['text_content']
+                    step3['details']['content_length'] = len(card['text_content'])
+                    step3['status'] = 'success'
+                else:
+                    step3['status'] = 'error'
+                    result['errors'].append("固定文字卡券内容为空")
+
+            elif card['type'] == 'data':
+                # 批量数据类型
+                if card['data_content']:
+                    lines = [line.strip() for line in card['data_content'].split('\n') if line.strip()]
+                    if lines:
+                        selected_line = random.choice(lines)
+                        step3['details']['content'] = selected_line
+                        step3['details']['total_data_count'] = len(lines)
+                        step3['details']['selected_index'] = lines.index(selected_line) + 1
+                        step3['status'] = 'success'
+                    else:
+                        step3['status'] = 'error'
+                        result['errors'].append("批量数据为空")
+                else:
+                    step3['status'] = 'error'
+                    result['errors'].append("未配置批量数据内容")
+
+            elif card['type'] == 'image':
+                # 图片类型
+                if card['image_url']:
+                    try:
+                        img_response = requests.head(card['image_url'], timeout=5)
+                        step3['details']['image_url'] = card['image_url']
+                        step3['details']['image_status_code'] = img_response.status_code
+                        step3['details']['image_content_type'] = img_response.headers.get('Content-Type', 'unknown')
+
+                        if img_response.status_code == 200:
+                            content_type = img_response.headers.get('Content-Type', '')
+                            if content_type.startswith('image/'):
+                                step3['status'] = 'success'
+                            else:
+                                step3['status'] = 'warning'
+                                result['warnings'].append(f"图片URL返回的不是图片类型: {content_type}")
+                        else:
+                            step3['status'] = 'error'
+                            result['errors'].append(f"图片URL无法访问: HTTP {img_response.status_code}")
+                    except requests.exceptions.Timeout:
+                        step3['status'] = 'error'
+                        result['errors'].append("图片URL访问超时")
+                    except requests.exceptions.RequestException as e:
+                        step3['status'] = 'error'
+                        result['errors'].append(f"图片URL访问失败: {str(e)}")
+                else:
+                    step3['status'] = 'error'
+                    result['errors'].append("未配置图片URL")
+
+        except Exception as e:
+            step3['status'] = 'error'
+            result['errors'].append(f"卡券内容测试异常: {str(e)}")
+
+        result['steps'].append(step3)
+
+        # 继续处理API类型
+        if card['type'] == 'api' and step3['status'] == 'pending':
+            try:
+                if card['api_config']:
+                    api_config = card['api_config']
+                    if isinstance(api_config, str):
+                        api_config = json.loads(api_config)
+
+                    url = api_config.get('url')
+                    method = api_config.get('method', 'GET').upper()
+
+                    if not url:
+                        step3['status'] = 'error'
+                        result['errors'].append("API配置中缺少URL")
+                    else:
+                        # 模拟测试参数
+                        test_params = {
+                            'order_id': 'TEST_ORDER_123',
+                            'item_id': 'TEST_ITEM_456',
+                            'user_id': 'TEST_USER_789',
+                            'spec_name': card.get('spec_name', ''),
+                            'spec_value': card.get('spec_value', '')
+                        }
+
+                        # 替换URL中的占位符
+                        test_url = url
+                        for key, value in test_params.items():
+                            test_url = test_url.replace(f'{{{key}}}', str(value))
+
+                        try:
+                            headers = api_config.get('headers', {})
+                            params = api_config.get('params', {})
+                            data = api_config.get('data', {})
+
+                            # 替换参数中的占位符
+                            def replace_placeholders(obj):
+                                if isinstance(obj, str):
+                                    for key, value in test_params.items():
+                                        obj = obj.replace(f'{{{key}}}', str(value))
+                                    return obj
+                                elif isinstance(obj, dict):
+                                    return {k: replace_placeholders(v) for k, v in obj.items()}
+                                elif isinstance(obj, list):
+                                    return [replace_placeholders(item) for item in obj]
+                                return obj
+
+                            headers = replace_placeholders(headers)
+                            params = replace_placeholders(params)
+                            data = replace_placeholders(data)
+
+                            # 发送测试请求
+                            timeout = 10
+                            response = None
+
+                            if method == 'GET':
+                                response = requests.get(test_url, headers=headers, params=params, timeout=timeout)
+                            elif method == 'POST':
+                                if headers.get('Content-Type') == 'application/json':
+                                    response = requests.post(test_url, headers=headers, json=data, timeout=timeout)
+                                else:
+                                    response = requests.post(test_url, headers=headers, data=data, timeout=timeout)
+
+                            if response:
+                                step3['details']['api_url'] = test_url
+                                step3['details']['api_method'] = method
+                                step3['details']['api_status_code'] = response.status_code
+                                step3['details']['api_response_time'] = f"{response.elapsed.total_seconds():.2f}s"
+
+                                if response.status_code == 200:
+                                    try:
+                                        api_result = response.json()
+                                        step3['details']['content'] = json.dumps(api_result, ensure_ascii=False, indent=2)[:500]
+                                        step3['details']['api_response_type'] = 'JSON'
+                                        step3['status'] = 'success'
+                                    except:
+                                        step3['details']['content'] = response.text[:500]
+                                        step3['details']['api_response_type'] = 'TEXT'
+                                        step3['status'] = 'success'
+                                else:
+                                    step3['status'] = 'error'
+                                    result['errors'].append(f"API请求失败: HTTP {response.status_code}")
+                                    step3['details']['error_response'] = response.text[:200]
+                        except requests.exceptions.Timeout:
+                            step3['status'] = 'error'
+                            result['errors'].append("API请求超时")
+                        except requests.exceptions.RequestException as e:
+                            step3['status'] = 'error'
+                            result['errors'].append(f"API请求异常: {str(e)}")
+                else:
+                    step3['status'] = 'error'
+                    result['errors'].append("未配置API参数")
+            except Exception as e:
+                step3['status'] = 'error'
+                result['errors'].append(f"API测试异常: {str(e)}")
+
+        # 步骤4：延时设置验证
+        delay_seconds = card.get('delay_seconds', 0)
+        step4 = {
+            "step": "延时设置验证",
+            "status": "success",
+            "details": {
+                "delay_seconds": delay_seconds,
+                "delay_description": f"发货延时 {delay_seconds} 秒"
+            }
+        }
+
+        if delay_seconds > 3600:
+            step4['status'] = 'warning'
+            result['warnings'].append("发货延时超过1小时，可能过长")
+        elif delay_seconds < 0:
+            step4['status'] = 'error'
+            result['errors'].append("发货延时不能为负数")
+
+        result['steps'].append(step4)
+
+        # 步骤5：多规格匹配验证
+        if card.get('is_multi_spec') and card.get('spec_name') and card.get('spec_value'):
+            step5 = {
+                "step": "多规格匹配验证",
+                "status": "success",
+                "details": {
+                    "spec_name": card['spec_name'],
+                    "spec_value": card['spec_value'],
+                    "match_type": "精确匹配",
+                    "is_multi_spec": True
+                }
+            }
+            result['steps'].append(step5)
+        else:
+            step5 = {
+                "step": "多规格匹配验证",
+                "status": "info",
+                "details": {
+                    "match_type": "通用匹配（无规格限制）",
+                    "is_multi_spec": card.get('is_multi_spec', False)
+                }
+            }
+            result['steps'].append(step5)
+
+        # 判断整体测试结果
+        has_errors = len(result['errors']) > 0
+        has_warnings = len(result['warnings']) > 0
+
+        if not has_errors:
+            result['success'] = True
+            if has_warnings:
+                result['status'] = 'success_with_warnings'
+            else:
+                result['status'] = 'success'
+        else:
+            result['success'] = False
+            result['status'] = 'error'
+
+        log_with_user('info', f"测试发货规则: {rule['keyword']} - {'成功' if result['success'] else '失败'}", current_user)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.delete("/cards/{card_id}")
 def delete_card(card_id: int, _: None = Depends(require_auth)):
     """删除卡券"""

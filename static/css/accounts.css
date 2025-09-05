@@ -85,6 +85,228 @@ input:checked + .status-slider:before {
   background-color: #f3f4f6;
 }
 
+/* 深色主题下的cookie值显示修复 */
+body.dark-mode .cookie-value {
+  color: var(--text-color) !important;
+  background-color: transparent !important;
+}
+
+body.dark-mode .account-row.disabled .cookie-value {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--text-color-muted) !important;
+}
+
+/* 账号管理页面按钮组优化 */
+#cookieTable .btn-group {
+  gap: 0.25rem; /* 减少按钮间距以节省空间 */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+#cookieTable .btn-group .btn {
+  margin: 0.125rem; /* 减少外边距 */
+  padding: 0.375rem 0.5rem; /* 减少内边距 */
+  font-size: 0.75rem; /* 减少字体大小 */
+  border-radius: 0.375rem;
+  min-width: 2.5rem; /* 减少最小宽度 */
+  min-height: 2rem; /* 减少最小高度 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* 账号管理按钮悬停效果 */
+#cookieTable .btn-group .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 移动端账号管理按钮优化 */
+@media (max-width: 767.98px) {
+  #cookieTable .btn-group {
+    flex-direction: column;
+    gap: 0.375rem;
+    width: 100%;
+  }
+
+  #cookieTable .btn-group .btn {
+    width: 100%;
+    margin: 0.125rem 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    min-height: 3rem;
+    justify-content: flex-start;
+    gap: 0.5rem;
+  }
+
+  #cookieTable .btn-group .btn i {
+    margin-right: 0.5rem;
+  }
+}
+
+/* 深色主题下账号表格的额外优化 */
+body.dark-mode #cookieTable td,
+body.dark-mode #cookieTable th {
+  border-color: var(--glass-border) !important;
+}
+
+body.dark-mode #cookieTable .cookie-id strong {
+  color: var(--accent-color) !important;
+}
+
+/* 桌面端账号管理表格优化 */
+@media (min-width: 768px) {
+  #cookieTable {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  /* 编辑模式下的表格布局由JavaScript动态控制 */
+
+  /* 强制表格列宽 */
+  #cookieTable colgroup {
+    display: table-column-group;
+  }
+
+  #cookieTable col:nth-child(1) { width: 8% !important; }   /* 账号ID */
+  #cookieTable col:nth-child(2) { width: 20% !important; }  /* Cookie值 */
+  #cookieTable col:nth-child(3) { width: 6% !important; }   /* 关键词 */
+  #cookieTable col:nth-child(4) { width: 8% !important; }   /* 状态 */
+  #cookieTable col:nth-child(5) { width: 7% !important; }   /* 默认回复 */
+  #cookieTable col:nth-child(6) { width: 7% !important; }   /* AI回复 */
+  #cookieTable col:nth-child(7) { width: 9% !important; }   /* 自动确认发货 */
+  #cookieTable col:nth-child(8) { width: 6% !important; }   /* 备注 */
+  #cookieTable col:nth-child(9) { width: 8% !important; }   /* 暂停时间 */
+  #cookieTable col:nth-child(10) { width: 21% !important; } /* 操作 */
+
+  /* 账号ID列优化 - 不换行 */
+  #cookieTable .cookie-id {
+    white-space: nowrap;
+    overflow: visible; /* 允许显示完整内容 */
+    font-size: 0.875rem;
+    min-width: 80px; /* 确保有足够空间 */
+  }
+
+  /* Cookie值列优化 - 确保有足够空间 */
+  #cookieTable .cookie-value {
+    max-width: none;
+    word-break: break-all;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    min-width: 180px; /* 确保最小宽度 */
+    width: 20% !important; /* 强制设置宽度 */
+  }
+
+  /* Cookie值输入框优化 */
+  #cookieTable .cookie-value input,
+  #cookieTable .cookie-value textarea {
+    width: 100% !important;
+    min-width: 180px;
+    font-size: 0.75rem;
+    padding: 0.375rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    background-color: #fff;
+  }
+
+  /* Cookie值编辑模式特殊处理 */
+  #cookieTable .cookie-value.editing {
+    position: relative;
+    z-index: 10;
+    overflow: visible !important;
+    min-width: 300px !important; /* 确保有足够空间容纳编辑界面 */
+    width: auto !important; /* 允许自动调整宽度 */
+  }
+
+  /* 编辑模式下的容器 */
+  #cookieTable .cookie-value.editing .d-flex {
+    min-width: 280px;
+    white-space: nowrap;
+  }
+
+  /* 编辑模式下的输入框 */
+  #cookieTable .cookie-value.editing input {
+    min-width: 180px;
+    flex: 1;
+  }
+
+  /* 编辑模式下的按钮 */
+  #cookieTable .cookie-value.editing .btn {
+    flex-shrink: 0;
+    margin-left: 0.25rem;
+  }
+
+  /* 状态列优化 */
+  #cookieTable .status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  /* 状态切换器优化 */
+  #cookieTable .status-toggle {
+    transform: scale(0.8);
+  }
+
+  /* 自动确认发货列优化 */
+  #cookieTable .auto-confirm-badge {
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  #cookieTable .auto-confirm-badge .status-toggle {
+    transform: scale(0.8);
+  }
+
+  #cookieTable td:last-child {
+    min-width: 220px; /* 增加操作列宽度 */
+    width: 21% !important; /* 增加宽度确保按钮可用 */
+    text-align: center; /* 操作列内容居中 */
+  }
+
+  /* 操作列表头居中 */
+  #cookieTable th:last-child {
+    text-align: center !important;
+  }
+
+  /* Cookie值列的表头和单元格 */
+  #cookieTable th:nth-child(2),
+  #cookieTable td:nth-child(2) {
+    width: 20% !important;
+    min-width: 180px !important;
+  }
+
+  /* 桌面端按钮组特殊优化 */
+  #cookieTable .btn-group {
+    flex-wrap: wrap; /* 允许换行以适应空间 */
+    gap: 0.25rem; /* 适当间距 */
+    justify-content: center;
+  }
+
+  #cookieTable .btn-group .btn {
+    padding: 0.375rem 0.5rem; /* 恢复正常内边距确保可点击 */
+    font-size: 0.75rem; /* 恢复正常字体大小 */
+    min-width: 2.25rem; /* 恢复正常最小宽度 */
+    min-height: 2rem; /* 恢复正常最小高度 */
+    margin: 0.125rem;
+    border-radius: 0.375rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer; /* 确保显示手型光标 */
+  }
+
+  /* 确保按钮有足够的点击区域 */
+  #cookieTable .btn-group .btn:hover {
+    transform: none; /* 移除可能的变换效果 */
+  }
+}
+
 /* 关键词管理界面的状态提示 */
 .account-badge .badge.bg-warning {
   animation: pulse 2s infinite;

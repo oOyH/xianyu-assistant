@@ -122,8 +122,37 @@ let currentOrderSearchKeyword = ''; // 当前搜索关键词
 // ================================
 // 通用功能 - 菜单切换和导航
 // ================================
+
+// 恢复上次访问的页面
+function restoreLastPage() {
+    const lastPage = localStorage.getItem('currentPage');
+    if (lastPage && lastPage !== 'dashboard') {
+        // 验证页面是否存在
+        const targetSection = document.getElementById(lastPage + '-section');
+        if (targetSection) {
+            console.log('恢复上次访问的页面:', lastPage);
+            showSection(lastPage);
+        } else {
+            console.log('上次访问的页面不存在，显示仪表盘');
+            showSection('dashboard');
+        }
+    } else {
+        // 默认显示仪表盘
+        showSection('dashboard');
+    }
+}
+
+// 清除页面状态（可用于重置）
+function clearPageState() {
+    localStorage.removeItem('currentPage');
+    showSection('dashboard');
+}
+
 function showSection(sectionName) {
     console.log('切换到页面:', sectionName); // 调试信息
+
+    // 保存当前页面状态到localStorage
+    localStorage.setItem('currentPage', sectionName);
 
     // 隐藏所有内容区域
     document.querySelectorAll('.content-section').forEach(section => {
@@ -1356,7 +1385,7 @@ async function loadCookies() {
             </span>
         </td>
         <td class="align-middle">
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-1">
             <label class="status-toggle" title="${isEnabled ? '点击禁用' : '点击启用'}">
                 <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleAccountStatus('${cookie.id}', this.checked)">
                 <span class="status-slider"></span>
@@ -1373,7 +1402,7 @@ async function loadCookies() {
             ${aiReplyBadge}
         </td>
         <td class="align-middle">
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-1 auto-confirm-badge">
             <label class="status-toggle" title="${autoConfirm ? '点击关闭自动确认发货' : '点击开启自动确认发货'}">
                 <input type="checkbox" ${autoConfirm ? 'checked' : ''} onchange="toggleAutoConfirm('${cookie.id}', this.checked)">
                 <span class="status-slider"></span>
@@ -1682,6 +1711,17 @@ function editCookieInline(id, currentValue) {
     cookieValueCell.innerHTML = '';
     cookieValueCell.appendChild(editContainer);
 
+    // 添加编辑模式CSS类
+    cookieValueCell.classList.add('editing');
+
+    // 临时调整表格布局以适应编辑模式
+    const table = document.getElementById('cookieTable');
+    if (table) {
+        table.style.tableLayout = 'auto';
+    }
+
+
+
     // 聚焦输入框
     input.focus();
     input.select();
@@ -1749,6 +1789,15 @@ function cancelCookieEdit(id) {
 
     // 恢复原内容
     cookieValueCell.innerHTML = window.editingCookieData.originalContent;
+
+    // 移除编辑模式CSS类
+    cookieValueCell.classList.remove('editing');
+
+    // 恢复表格布局
+    const table = document.getElementById('cookieTable');
+    if (table) {
+        table.style.tableLayout = 'fixed';
+    }
 
     // 恢复按钮状态
     const actionButtons = row.querySelectorAll('.btn-group button');
@@ -2035,6 +2084,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 启动项目用户统计定时刷新
     startProjectUsersRefresh();
+
+    // 恢复上次访问的页面状态
+    restoreLastPage();
     // 添加Cookie表单提交
     document.getElementById('addForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -4812,9 +4864,348 @@ async function updateCardWithImage(cardId, cardData, imageFile) {
 
 
 
-// 测试卡券（占位函数）
-function testCard(cardId) {
-    showToast('测试功能开发中...', 'info');
+// 测试卡券功能
+let currentTestCardId = null;
+let testResultModal = null;
+
+// 初始化测试结果模态框
+function initTestResultModal() {
+    if (!testResultModal) {
+        const modalElement = document.getElementById('cardTestResultModal');
+        testResultModal = new bootstrap.Modal(modalElement);
+
+        // 添加关闭事件监听器
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            // 确保清理所有残留的backdrop和样式
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, 100);
+        });
+    }
+    return testResultModal;
+}
+
+async function testCard(cardId) {
+    currentTestCardId = cardId;
+
+    try {
+        // 显示加载状态
+        showTestResult({
+            loading: true,
+            card_name: '加载中...',
+            card_type: '',
+            test_time: new Date().toLocaleString()
+        });
+
+        // 显示模态框
+        const modal = initTestResultModal();
+        modal.show();
+
+        // 发送测试请求
+        const response = await fetch(`/cards/${cardId}/test`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            showTestResult(result);
+        } else {
+            const error = await response.text();
+            showTestResult({
+                success: false,
+                error: `测试失败: ${error}`,
+                card_name: '未知卡券',
+                card_type: '',
+                test_time: new Date().toLocaleString()
+            });
+        }
+    } catch (error) {
+        console.error('测试卡券失败:', error);
+        showTestResult({
+            success: false,
+            error: `网络错误: ${error.message}`,
+            card_name: '未知卡券',
+            card_type: '',
+            test_time: new Date().toLocaleString()
+        });
+    }
+}
+
+// 重新测试当前卡券
+function retestCurrentCard() {
+    if (currentTestCardId) {
+        testCard(currentTestCardId);
+    }
+}
+
+// 关闭测试结果模态框
+function closeTestResultModal() {
+    if (testResultModal) {
+        testResultModal.hide();
+    }
+    // 清理可能残留的backdrop
+    setTimeout(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }, 300);
+}
+
+// 显示测试结果
+function showTestResult(result) {
+    const container = document.getElementById('testResultContent');
+
+    if (result.loading) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">测试中...</span>
+                </div>
+                <div class="mt-3">
+                    <h6>正在测试卡券...</h6>
+                    <p class="text-muted">请稍候，正在验证卡券配置和获取测试数据</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // 构建结果HTML
+    let html = `
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">
+                        <i class="bi bi-card-text me-2"></i>${result.card_name}
+                    </h6>
+                    <small class="text-muted">类型: ${getCardTypeText(result.card_type)} | 测试时间: ${result.test_time}</small>
+                </div>
+                <div>
+                    ${result.success ?
+                        '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>测试成功</span>' :
+                        '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>测试失败</span>'
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+    `;
+
+    if (result.success) {
+        // 成功情况
+        html += '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>卡券测试通过，配置正确！</div>';
+
+        // 显示警告信息
+        if (result.warning) {
+            html += `<div class="alert alert-warning mb-3"><i class="bi bi-exclamation-triangle me-2"></i>${escapeHtml(result.warning)}</div>`;
+        }
+
+        // 显示测试内容
+        if (result.content) {
+            if (result.content_type === 'image') {
+                // 图片类型
+                html += `
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">测试图片:</label>
+                        <div class="border rounded p-3 bg-light">
+                            <div class="text-center">
+                                <img src="${result.content}" alt="卡券图片" class="img-fluid" style="max-height: 300px;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div class="alert alert-danger" style="display: none;">
+                                    <i class="bi bi-image me-2"></i>图片加载失败
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">图片URL:</small>
+                                    <code class="small">${escapeHtml(result.content)}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 文本内容
+                const contentLabel = result.api_response_type === 'JSON' ? '测试响应 (JSON):' :
+                                   result.api_response_type === 'TEXT' ? '测试响应 (文本):' : '测试内容:';
+                html += `
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">${contentLabel}</label>
+                        ${result.api_response_length ? `<small class="text-muted ms-2">(总长度: ${result.api_response_length} 字符)</small>` : ''}
+                        <div class="border rounded p-3 bg-light">
+                            <pre class="mb-0 small" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.content)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 显示额外信息
+        if (result.total_data_count) {
+            html += `<div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                批量数据总数: ${result.total_data_count} 条
+                ${result.selected_line_index ? ` | 测试第 ${result.selected_line_index} 条数据` : ''}
+                ${result.data_format_consistent === false ? ' | <span class="text-warning">⚠️ 数据格式不一致</span>' : ''}
+            </div>`;
+
+            // 显示数据预览
+            if (result.data_preview && result.data_preview.length > 0) {
+                html += `
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">数据预览（前${result.data_preview.length}条）:</label>
+                        <div class="border rounded p-2 bg-light">
+                            ${result.data_preview.map((line, index) =>
+                                `<div class="small ${index + 1 === result.selected_line_index ? 'text-primary fw-bold' : 'text-muted'}">${index + 1}. ${escapeHtml(line)}</div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (result.api_status_code) {
+            html += `
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <small class="text-muted">API状态码:</small>
+                        <span class="badge bg-${result.api_status_code === 200 ? 'success' : 'warning'}">${result.api_status_code}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">响应时间:</small>
+                        <span class="badge bg-info">${result.api_response_time}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted">响应类型:</small>
+                        <span class="badge bg-secondary">${result.api_response_type || 'Unknown'}</span>
+                    </div>
+                </div>
+            `;
+
+            if (result.api_request_url) {
+                html += `
+                    <div class="mb-3">
+                        <small class="text-muted">请求URL:</small>
+                        <div class="border rounded p-2 bg-light">
+                            <code class="small">${escapeHtml(result.api_request_url)}</code>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 图片测试信息
+        if (result.image_status_code) {
+            html += `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">图片状态码:</small>
+                        <span class="badge bg-${result.image_status_code === 200 ? 'success' : 'warning'}">${result.image_status_code}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">内容类型:</small>
+                        <span class="badge bg-info">${result.image_content_type}</span>
+                    </div>
+                </div>
+            `;
+        }
+    } else {
+        // 失败情况
+        html += `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>测试失败: ${result.error}</div>`;
+
+        if (result.content) {
+            html += `
+                <div class="mb-3">
+                    <label class="form-label fw-bold">错误详情:</label>
+                    <div class="border rounded p-3 bg-light">
+                        <pre class="mb-0 text-danger" style="white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.content)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (result.api_status_code) {
+            html += `
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <small class="text-muted">API状态码:</small>
+                        <span class="badge bg-danger">${result.api_status_code}</span>
+                    </div>
+                    ${result.api_response_time ? `
+                    <div class="col-md-4">
+                        <small class="text-muted">响应时间:</small>
+                        <span class="badge bg-info">${result.api_response_time}</span>
+                    </div>
+                    ` : ''}
+                    ${result.api_response_type ? `
+                    <div class="col-md-4">
+                        <small class="text-muted">响应类型:</small>
+                        <span class="badge bg-secondary">${result.api_response_type}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            if (result.api_request_url) {
+                html += `
+                    <div class="mb-3">
+                        <small class="text-muted">请求URL:</small>
+                        <div class="border rounded p-2 bg-light">
+                            <code class="small">${escapeHtml(result.api_request_url)}</code>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 图片测试失败信息
+        if (result.image_status_code) {
+            html += `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">图片状态码:</small>
+                        <span class="badge bg-danger">${result.image_status_code}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">内容类型:</small>
+                        <span class="badge bg-warning">${result.image_content_type}</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+// 获取卡券类型文本
+function getCardTypeText(type) {
+    switch(type) {
+        case 'api': return 'API接口';
+        case 'text': return '固定文字';
+        case 'data': return '批量数据';
+        case 'image': return '图片';
+        default: return '未知类型';
+    }
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // 删除卡券
@@ -4983,9 +5374,209 @@ async function updateDeliveryRule() {
     }
 }
 
-// 测试发货规则（占位函数）
-function testDeliveryRule(ruleId) {
-    showToast('测试功能开发中...', 'info');
+// 测试发货规则
+async function testDeliveryRule(ruleId) {
+    try {
+        // 显示加载状态
+        showDeliveryTestResult({
+            loading: true,
+            rule_name: '加载中...',
+            test_time: new Date().toLocaleString()
+        });
+
+        // 显示模态框
+        const modal = initDeliveryTestResultModal();
+        modal.show();
+
+        // 发送测试请求
+        const response = await fetch(`/delivery-rules/${ruleId}/test`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            showDeliveryTestResult(result);
+        } else {
+            const error = await response.text();
+            showDeliveryTestResult({
+                success: false,
+                error: `测试失败: ${error}`,
+                rule_name: '未知规则',
+                test_time: new Date().toLocaleString()
+            });
+        }
+    } catch (error) {
+        console.error('测试发货规则失败:', error);
+        showDeliveryTestResult({
+            success: false,
+            error: `网络错误: ${error.message}`,
+            rule_name: '未知规则',
+            test_time: new Date().toLocaleString()
+        });
+    }
+}
+
+// 发货规则测试结果模态框管理
+let deliveryTestResultModal = null;
+
+// 初始化发货规则测试结果模态框
+function initDeliveryTestResultModal() {
+    if (!deliveryTestResultModal) {
+        const modalElement = document.getElementById('deliveryTestResultModal');
+        deliveryTestResultModal = new bootstrap.Modal(modalElement);
+
+        // 添加关闭事件监听器
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            // 确保清理所有残留的backdrop和样式
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, 100);
+        });
+    }
+    return deliveryTestResultModal;
+}
+
+// 显示发货规则测试结果
+function showDeliveryTestResult(result) {
+    const contentDiv = document.getElementById('deliveryTestResultContent');
+
+    if (result.loading) {
+        contentDiv.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">测试中...</span>
+                </div>
+                <div class="mt-3">
+                    <h6>正在测试发货规则...</h6>
+                    <p class="text-muted">请稍候，正在验证发货规则配置和卡券内容</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // 构建结果HTML
+    let html = `
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">
+                        <i class="bi bi-truck me-2"></i>${result.rule_name}
+                    </h6>
+                    <small class="text-muted">规则ID: ${result.rule_id || 'N/A'} | 测试时间: ${result.test_time}</small>
+                </div>
+                <div>
+                    ${result.success ?
+                        '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>测试成功</span>' :
+                        '<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>测试失败</span>'
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+    `;
+
+    if (result.success) {
+        // 成功情况
+        html += '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>发货规则测试通过，配置正确！</div>';
+
+        if (result.status === 'success_with_warnings') {
+            html += '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>测试通过但有警告，请检查配置</div>';
+        }
+    } else {
+        // 失败情况
+        html += `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>测试失败: ${result.error || '未知错误'}</div>`;
+    }
+
+    // 显示警告信息
+    if (result.warnings && result.warnings.length > 0) {
+        html += '<div class="mb-3"><h6 class="text-warning">⚠️ 警告信息:</h6><ul class="list-unstyled">';
+        result.warnings.forEach(warning => {
+            html += `<li class="text-warning">• ${escapeHtml(warning)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // 显示错误信息
+    if (result.errors && result.errors.length > 0) {
+        html += '<div class="mb-3"><h6 class="text-danger">❌ 错误信息:</h6><ul class="list-unstyled">';
+        result.errors.forEach(error => {
+            html += `<li class="text-danger">• ${escapeHtml(error)}</li>`;
+        });
+        html += '</ul></div>';
+    }
+
+    // 显示测试步骤
+    if (result.steps && result.steps.length > 0) {
+        html += '<div class="mb-3"><h6>📋 测试步骤:</h6>';
+        result.steps.forEach((step, index) => {
+            const statusIcon = step.status === 'success' ? 'check-circle text-success' :
+                             step.status === 'warning' ? 'exclamation-triangle text-warning' :
+                             step.status === 'error' ? 'x-circle text-danger' :
+                             step.status === 'info' ? 'info-circle text-info' :
+                             'clock text-muted';
+
+            html += `
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-light text-dark me-2">${index + 1}</span>
+                            <i class="bi bi-${statusIcon} me-2"></i>
+                            <strong>${step.step}</strong>
+                        </div>
+                        ${step.details ? `<div class="mt-2 ms-4"><small class="text-muted">${formatStepDetails(step.details)}</small></div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    contentDiv.innerHTML = html;
+}
+
+// 格式化步骤详情
+function formatStepDetails(details) {
+    let html = '';
+
+    for (const [key, value] of Object.entries(details)) {
+        if (key === 'content' && typeof value === 'string' && value.length > 100) {
+            html += `<div><strong>${key}:</strong> <pre class="small bg-light p-2 rounded">${escapeHtml(value.substring(0, 200))}${value.length > 200 ? '...' : ''}</pre></div>`;
+        } else if (typeof value === 'object') {
+            html += `<div><strong>${key}:</strong> ${JSON.stringify(value)}</div>`;
+        } else {
+            html += `<div><strong>${key}:</strong> ${escapeHtml(String(value))}</div>`;
+        }
+    }
+
+    return html;
+}
+
+// 关闭发货规则测试结果模态框
+function closeDeliveryTestResultModal() {
+    if (deliveryTestResultModal) {
+        deliveryTestResultModal.hide();
+    }
+    // 清理可能残留的backdrop
+    setTimeout(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }, 300);
 }
 
 // 删除发货规则
@@ -5763,13 +6354,13 @@ function displayCurrentPageItems() {
                         data-item-id="${escapeHtml(item.item_id)}"
                         onchange="updateSelectAllState()">
             </td>
-            <td>${escapeHtml(item.cookie_id)}</td>
-            <td>${escapeHtml(item.item_id)}</td>
+            <td class="account-id">${escapeHtml(item.cookie_id)}</td>
+            <td class="item-id">${escapeHtml(item.item_id)}</td>
             <td title="${escapeHtml(item.item_title || '未设置')}">${escapeHtml(itemTitleDisplay)}</td>
             <td title="${escapeHtml(getItemDetailText(item.item_detail || ''))}">${escapeHtml(itemDetailDisplay)}</td>
-            <td>${escapeHtml(item.item_price || '未设置')}</td>
-            <td>${multiSpecDisplay}</td>
-            <td>${multiQuantityDeliveryDisplay}</td>
+            <td class="item-price">${escapeHtml(item.item_price || '未设置')}</td>
+            <td class="multi-spec-badge">${multiSpecDisplay}</td>
+            <td class="multi-quantity-badge">${multiQuantityDeliveryDisplay}</td>
             <td>${formatDateTime(item.updated_at)}</td>
             <td>
                 <div class="btn-group" role="group">
@@ -6506,8 +7097,8 @@ function displayItemReplays(items) {
                     data-item-id="${escapeHtml(item.item_id)}"
                     onchange="updateSelectAllState()">
         </td>
-        <td>${escapeHtml(item.cookie_id)}</td>
-        <td>${escapeHtml(item.item_id)}</td>
+        <td class="account-id">${escapeHtml(item.cookie_id)}</td>
+        <td class="item-id">${escapeHtml(item.item_id)}</td>
         <td title="${escapeHtml(item.item_title || '未设置')}">${escapeHtml(itemTitleDisplay)}</td>
         <td title="${escapeHtml(item.item_detail || '未设置')}">${escapeHtml(itemDetailDisplay)}</td>
         <td title="${escapeHtml(item.reply_content || '未设置')}">${escapeHtml(item.reply_content)}</td>

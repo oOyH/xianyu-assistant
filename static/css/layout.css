@@ -22,11 +22,14 @@
 }
 
 .sidebar-header {
-  padding: 2rem 1.5rem 1.5rem 1.5rem;
+  padding: 1.5rem 1.5rem 1.5rem 1.5rem;
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
   background: color-mix(in srgb, var(--glass-bg) 50%, transparent);
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  /* 确保与内容区域标题对齐 */
+  display: flex;
+  align-items: flex-start;
 }
 
 .sidebar-brand {
@@ -37,6 +40,8 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  line-height: 1.2; /* 与内容标题行高一致 */
+  margin: 0; /* 移除默认边距 */
 }
 
 .sidebar-brand i {
@@ -155,22 +160,136 @@
 /* 主内容区域 */
 .main-content {
   margin-left: 300px;
-  min-height: 100vh;
-  padding: 1rem 2rem 2rem 1rem;
+  margin-top: 1rem; /* 与侧边栏顶部间距一致 */
+  min-height: calc(100vh - 1rem);
+  padding: 0 2rem 2rem 1rem; /* 内容区域内部不需要顶部padding */
+}
+
+/* 内容区域重置 */
+.content-section {
+  margin: 0;
+  padding: 0;
+}
+
+.content-section:first-child {
+  margin-top: 0;
 }
 
 .content-header {
   background: var(--glass-bg);
   backdrop-filter: blur(25px) saturate(180%);
   -webkit-backdrop-filter: blur(25px) saturate(180%);
-  padding: 2rem;
+  padding: 1.5rem 2rem; /* 与侧边栏标题对齐 */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-md);
-  margin-bottom: 2rem;
+  margin: 0 0 2rem 0; /* 紧贴main-content顶部 */
   position: sticky;
-  top: 1rem;
+  top: 1rem; /* sticky时距离浏览器顶部1rem */
   z-index: 100;
+  /* 确保标题基线对齐 */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* 内容标题字体大小调整 */
+.content-header h2 {
+  font-size: 1.5rem !important; /* 与侧边栏标题大小一致 */
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 !important; /* 强制移除默认边距 */
+  padding: 0 !important; /* 强制移除默认内边距 */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* 与侧边栏图标间距一致 */
+}
+
+.content-header h2 i {
+  font-size: 1.75rem; /* 与侧边栏图标大小一致 */
+  color: var(--accent-color);
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.content-header p {
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+/* 强制重置内容区域的所有默认间距 */
+.content-header .d-flex {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.content-header .d-flex > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 确保内容区域与侧边栏顶部完美对齐 */
+.content-section {
+  margin-top: 0;
+}
+
+.content-section:first-child .content-header {
+  margin-top: 0;
+}
+
+/* 优化标题区域的垂直对齐 */
+.content-header .d-flex {
+  align-items: flex-start;
+  margin: 0;
+}
+
+.content-header .d-flex > div:first-child {
+  flex: 1;
+}
+
+/* 强制重置Bootstrap默认样式 */
+.content-header h1,
+.content-header h2,
+.content-header h3,
+.content-header h4,
+.content-header h5,
+.content-header h6 {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* 桌面端精确对齐调整 */
+@media (min-width: 992px) {
+  .sidebar {
+    top: 1rem; /* 确保与内容区域顶部对齐 */
+  }
+
+  .main-content {
+    margin-top: 1rem; /* 与侧边栏顶部间距一致 */
+    min-height: calc(100vh - 1rem);
+  }
+
+  .content-header {
+    margin-top: 0 !important; /* 紧贴main-content顶部 */
+    top: 1rem !important; /* sticky时距离浏览器顶部1rem */
+    position: sticky !important; /* 确保sticky定位 */
+  }
+
+  /* 确保标题文字基线对齐 */
+  .sidebar-header,
+  .content-header {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  /* 强制对齐第一个内容区域 */
+  .content-section:first-child .content-header {
+    margin-top: 0 !important; /* 紧贴main-content顶部 */
+    padding-top: 1.5rem !important;
+  }
 }
 
 .content-body {
@@ -229,8 +348,19 @@
   .content-header {
     padding: 1rem;
     padding-left: 5rem; /* 增加左侧空间，确保标题不被遮挡 */
-    margin-bottom: 1rem;
-    position: static;
+    margin: 0.5rem 0 1rem 0; /* 移动端适当的顶部间距 */
+    position: static !important; /* 移动端使用static定位 */
+    top: auto !important;
+  }
+
+  /* 移动端内容标题字体调整 */
+  .content-header h2 {
+    font-size: 1.25rem !important; /* 移动端稍小的字体 */
+    font-weight: 700;
+  }
+
+  .content-header h2 i {
+    font-size: 1.5rem; /* 保持图标相对较大 */
   }
 
   /* 仪表盘标题区域特殊处理 */
@@ -245,9 +375,6 @@
     justify-content: flex-start;
     flex-wrap: wrap;
   }
-
-  .content-header h2 {
-    font-size: 1.25rem;
   }
 
   .content-header p {
@@ -299,7 +426,17 @@
   .content-header {
     padding: 1.5rem;
     padding-left: 5.5rem; /* 增加左侧空间 */
-    margin-bottom: 1.5rem;
+    margin: 0.75rem 0 1.5rem 0; /* 小屏横屏适当的顶部间距 */
+    position: static !important; /* 小屏使用static定位 */
+    top: auto !important;
+  }
+
+  .content-header h2 {
+    font-size: 1.375rem !important; /* 中等屏幕的字体大小 */
+  }
+
+  .content-header h2 i {
+    font-size: 1.75rem; /* 保持图标大小一致 */
   }
 
   /* 仪表盘标题区域优化 */
@@ -342,7 +479,9 @@
   .content-header {
     padding: 2rem;
     padding-left: 6rem; /* 增加左侧空间 */
-    margin-bottom: 2rem;
+    margin: 1rem 0 2rem 0; /* 平板竖屏与侧边栏一致的顶部间距 */
+    position: static !important; /* 平板使用static定位 */
+    top: auto !important;
   }
 
   /* 平板竖屏恢复横向布局 */
@@ -353,7 +492,11 @@
   }
 
   .content-header h2 {
-    font-size: 1.5rem; /* 平板竖屏适中大小 */
+    font-size: 1.5rem !important; /* 平板竖屏适中大小 */
+  }
+
+  .content-header h2 i {
+    font-size: 1.75rem; /* 保持图标大小一致 */
   }
 }
 
@@ -366,7 +509,9 @@
 
   .main-content {
     margin-left: 260px;
-    padding: 1.5rem;
+    margin-top: 1rem; /* 与侧边栏顶部间距一致 */
+    min-height: calc(100vh - 1rem);
+    padding: 0 1.5rem 1.5rem 1.5rem;
   }
 
   .mobile-toggle {
@@ -374,7 +519,11 @@
   }
 
   .content-header h2 {
-    font-size: 1.75rem; /* 大屏幕标题大小 */
+    font-size: 1.5rem !important; /* 与侧边栏标题大小一致 */
+  }
+
+  .content-header h2 i {
+    font-size: 1.75rem; /* 保持图标大小一致 */
   }
 }
 
@@ -387,7 +536,9 @@
 
   .main-content {
     margin-left: 280px;
-    padding: 2rem;
+    margin-top: 1rem; /* 与侧边栏顶部间距一致 */
+    min-height: calc(100vh - 1rem);
+    padding: 0 2rem 2rem 2rem;
   }
 
   .mobile-toggle {
@@ -395,7 +546,11 @@
   }
 
   .content-header h2 {
-    font-size: 1.875rem; /* 桌面端标题大小 */
+    font-size: 1.5rem !important; /* 与侧边栏标题大小一致 */
+  }
+
+  .content-header h2 i {
+    font-size: 1.75rem; /* 保持图标大小一致 */
   }
 }
 
@@ -408,7 +563,9 @@
 
   .main-content {
     margin-left: 300px;
-    padding: 2.5rem;
+    margin-top: 1rem; /* 与侧边栏顶部间距一致 */
+    min-height: calc(100vh - 1rem);
+    padding: 0 2.5rem 2.5rem 2.5rem;
   }
 
   .mobile-toggle {
@@ -421,7 +578,11 @@
   }
 
   .content-header h2 {
-    font-size: 2rem; /* 大桌面端标题大小 */
+    font-size: 1.5rem !important; /* 与侧边栏标题大小一致 */
+  }
+
+  .content-header h2 i {
+    font-size: 1.75rem; /* 保持图标大小一致 */
   }
 }
 

@@ -839,7 +839,11 @@ body.dark-mode li,
 body.dark-mode td,
 body.dark-mode th,
 body.dark-mode label,
-body.dark-mode .form-text {
+body.dark-mode .form-text,
+body.dark-mode .cookie-value,
+body.dark-mode .text-monospace,
+body.dark-mode code,
+body.dark-mode pre {
   color: var(--text-color) !important;
 }
 
@@ -909,6 +913,234 @@ body.dark-mode .table {
   --bs-table-bg: transparent !important;
   --bs-table-striped-bg: rgba(255, 255, 255, 0.05) !important;
   --bs-table-hover-bg: rgba(255, 255, 255, 0.075) !important;
+  color: var(--text-color) !important;
+}
+
+/* 确保表格内所有文本在深色主题下可见 */
+body.dark-mode .table td,
+body.dark-mode .table th,
+body.dark-mode .table-responsive .table td,
+body.dark-mode .table-responsive .table th {
+  color: var(--text-color) !important;
+  border-color: var(--glass-border) !important;
+}
+
+/* 修复表格中特殊元素的颜色 */
+body.dark-mode .table .cookie-value,
+body.dark-mode .table .text-monospace,
+body.dark-mode .table code {
+  color: var(--text-color) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ================================
+   全局按钮间距和布局优化
+   ================================ */
+
+/* 统一按钮组间距 */
+.btn-group,
+.btn-toolbar {
+  gap: 0.375rem;
+}
+
+/* 卡片头部按钮组优化 */
+.card-header .btn-group {
+  gap: 0.25rem;
+}
+
+.card-header .btn-group .btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* 表格内按钮组统一样式 */
+.table .btn-group {
+  gap: 0.5rem; /* 增加按钮间距 */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.table .btn-group .btn {
+  margin: 0.25rem; /* 增加外边距 */
+  padding: 0.5rem 0.75rem; /* 增加内边距 */
+  font-size: 0.8125rem;
+  border-radius: 0.5rem; /* 增加圆角 */
+  min-width: 2.5rem; /* 增加最小宽度 */
+  min-height: 2.25rem; /* 设置最小高度 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* 特定表格的按钮组优化 */
+#cardsTableBody .btn-group,
+#deliveryRulesTableBody .btn-group,
+#usersTableBody .btn-group {
+  gap: 0.375rem;
+}
+
+#cardsTableBody .btn-group .btn,
+#deliveryRulesTableBody .btn-group .btn,
+#usersTableBody .btn-group .btn {
+  margin: 0.125rem;
+  padding: 0.375rem 0.75rem;
+  min-width: 2.75rem;
+  min-height: 2.5rem;
+}
+
+/* 操作按钮悬停效果优化 */
+.table .btn-group .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 确保按钮文字在所有主题下可见 */
+.btn-outline-primary,
+.btn-outline-success,
+.btn-outline-info,
+.btn-outline-warning,
+.btn-outline-danger {
+  font-weight: 600;
+}
+
+body.dark-mode .btn-outline-primary,
+body.dark-mode .btn-outline-success,
+body.dark-mode .btn-outline-info,
+body.dark-mode .btn-outline-warning,
+body.dark-mode .btn-outline-danger {
+  border-width: 1.5px;
+  font-weight: 600;
+}
+
+/* ================================
+   卡片头部操作区域优化
+   ================================ */
+
+/* 卡片头部按钮组间距 */
+.card-header .btn-group {
+  gap: 0.375rem;
+}
+
+.card-header .btn-group .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  margin: 0.125rem;
+}
+
+/* 工具栏按钮组优化 */
+.toolbar .btn-group,
+.table-toolbar .btn-group {
+  gap: 0.5rem;
+}
+
+.toolbar .btn-group .btn,
+.table-toolbar .btn-group .btn {
+  padding: 0.5rem 1rem;
+  margin: 0.125rem;
+}
+
+/* 页面顶部操作区域 */
+.page-header .btn-group {
+  gap: 0.375rem;
+}
+
+/* 表格操作列最小宽度确保 */
+.table td:last-child {
+  min-width: 180px;
+  padding: 0.75rem 0.5rem;
+}
+
+/* 确保所有操作按钮有足够的点击区域 */
+.btn-sm {
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.btn-xs {
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* ================================
+   桌面端按钮组优化
+   ================================ */
+
+/* 桌面端表格按钮组不应该占满宽度 */
+@media (min-width: 768px) {
+  .table .btn-group {
+    width: auto !important;
+    min-width: auto !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    justify-content: center;
+  }
+
+  .table .btn-group .btn {
+    width: auto !important;
+    min-width: 2.5rem;
+    flex: none;
+    margin: 0.125rem;
+  }
+
+  /* 特定表格的按钮组 */
+  #cookieTable .btn-group,
+  #itemsTableBody .btn-group,
+  #cardsTableBody .btn-group,
+  #deliveryRulesTableBody .btn-group,
+  #usersTableBody .btn-group {
+    width: auto !important;
+    min-width: auto !important;
+  }
+
+  #cookieTable .btn-group .btn,
+  #itemsTableBody .btn-group .btn,
+  #cardsTableBody .btn-group .btn,
+  #deliveryRulesTableBody .btn-group .btn,
+  #usersTableBody .btn-group .btn {
+    width: auto !important;
+    min-width: 2.75rem;
+  }
+
+  /* 工具栏按钮组优化 */
+  .table-toolbar .btn-group,
+  .page-header .btn-group,
+  .card-header .btn-group {
+    width: auto !important;
+    flex-direction: row !important;
+  }
+
+  .table-toolbar .btn-group .btn,
+  .page-header .btn-group .btn,
+  .card-header .btn-group .btn {
+    width: auto !important;
+    flex: none;
+  }
+
+  /* 确保所有按钮在桌面端都不会过宽 */
+  .btn:not(.btn-block):not(.w-100) {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  /* 特殊情况的按钮组 */
+  .content-header .btn-group,
+  .content-body .btn-group {
+    width: auto !important;
+    flex-direction: row !important;
+  }
+
+  .content-header .btn-group .btn,
+  .content-body .btn-group .btn {
+    width: auto !important;
+    flex: none;
+  }
 }
 
 /* 旧的重复样式已移除，使用上面统一的 Liquid Glass 样式 */
@@ -1094,22 +1326,26 @@ body.dark-mode .table {
   .btn-group {
     flex-direction: column;
     gap: 0.5rem;
+    display: flex;
   }
 
   .btn-group .btn {
     margin-right: 0;
     margin-bottom: 0;
     border-radius: 0.75rem !important;
+    margin: 0.125rem;
   }
 
   .btn-group-horizontal {
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 0.375rem;
   }
 
   .btn-group-horizontal .btn {
     flex: 1;
     min-width: 0;
+    margin: 0.125rem;
   }
 
   /* 输入组优化 */
