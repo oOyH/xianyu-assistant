@@ -1,9 +1,9 @@
 services:
   xianyu-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: xianyu-auto-reply:latest
+    #build:
+    #  context: .
+    #  dockerfile: Dockerfile
+    image: supertian7/xianyu-auto-reply:latest
     container_name: xianyu-auto-reply
     restart: unless-stopped
     # 使用root用户避免权限问题
