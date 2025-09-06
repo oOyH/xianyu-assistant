@@ -15,36 +15,148 @@
   <link rel="stylesheet" href="/static/lib/bootstrap/bootstrap.min.css">
   <link rel="stylesheet" href="/static/lib/bootstrap-icons/bootstrap-icons.css">
   <style>
+    /* Liquid Glass 设计系统变量 */
     :root {
-      --primary-color: #0d6efd;
-      --secondary-color: #6c757d;
-      --success-color: #198754;
-      --danger-color: #dc3545;
+      /* 字体系统 - Apple San Francisco 风格 */
+      --font-family-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+
+      /* 浅色模式调色板 */
+      --bg-color-light: #f8fafc;
+      --bg-image-light: linear-gradient(120deg, #fdfbfb 0%, #f1f5f9 100%);
+      --text-color-light: #1e293b;
+      --text-color-secondary-light: #64748b;
+      --text-color-muted-light: #94a3b8;
+      --accent-color-light: #3b82f6;
+      --glass-bg-light: rgba(248, 250, 252, 0.85);
+      --glass-border-light: rgba(255, 255, 255, 0.6);
+      --shadow-color-light: rgba(0, 0, 0, 0.08);
+      --card-text-light: #1e293b;
+      --header-text-light: #ffffff;
+
+      /* 深色模式调色板 */
+      --bg-color-dark: #0f172a;
+      --bg-image-dark: linear-gradient(120deg, #1e293b 0%, #334155 100%);
+      --text-color-dark: #f1f5f9;
+      --text-color-secondary-dark: #cbd5e1;
+      --text-color-muted-dark: #94a3b8;
+      --accent-color-dark: #60a5fa;
+      --glass-bg-dark: rgba(15, 23, 42, 0.85);
+      --glass-border-dark: rgba(255, 255, 255, 0.1);
+      --shadow-color-dark: rgba(0, 0, 0, 0.3);
+      --card-text-dark: #f1f5f9;
+      --header-text-dark: #ffffff;
+
+      /* 当前主题变量 (默认浅色模式) */
+      --bg-color: var(--bg-color-light);
+      --bg-image: var(--bg-image-light);
+      --text-color: var(--text-color-light);
+      --text-color-secondary: var(--text-color-secondary-light);
+      --text-color-muted: var(--text-color-muted-light);
+      --accent-color: var(--accent-color-light);
+      --glass-bg: var(--glass-bg-light);
+      --glass-border: var(--glass-border-light);
+      --shadow-color: var(--shadow-color-light);
+      --card-text: var(--card-text-light);
+      --header-text: var(--header-text-light);
+
+      /* 设计系统变量 */
+      --radius-2xl: 1.5rem;
+      --shadow-md: 0 10px 25px -3px var(--shadow-color), 0 4px 6px -2px var(--shadow-color);
+      --transition-fluid: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-quick: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+      /* 兼容旧变量 */
+      --primary-color: var(--accent-color);
+      --secondary-color: var(--text-color-secondary);
+      --success-color: #10b981;
+      --danger-color: #ef4444;
     }
-    
+
+    /* 深色模式 */
+    [data-theme="dark"] {
+      --bg-color: var(--bg-color-dark);
+      --bg-image: var(--bg-image-dark);
+      --text-color: var(--text-color-dark);
+      --text-color-secondary: var(--text-color-secondary-dark);
+      --text-color-muted: var(--text-color-muted-dark);
+      --accent-color: var(--accent-color-dark);
+      --glass-bg: var(--glass-bg-dark);
+      --glass-border: var(--glass-border-dark);
+      --shadow-color: var(--shadow-color-dark);
+      --card-text: var(--card-text-dark);
+      --header-text: var(--header-text-dark);
+    }
+
+    /* 深色模式文字优化 */
+    [data-theme="dark"] .form-label,
+    [data-theme="dark"] .form-text,
+    [data-theme="dark"] .text-muted,
+    [data-theme="dark"] small,
+    [data-theme="dark"] .small {
+      color: var(--text-color-secondary) !important;
+    }
+
+    [data-theme="dark"] .text-decoration-none {
+      color: var(--accent-color) !important;
+    }
+
+    [data-theme="dark"] .btn-outline-secondary {
+      color: var(--text-color) !important;
+      border-color: var(--glass-border) !important;
+    }
+
+    [data-theme="dark"] .btn-outline-secondary:hover {
+      background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg)) !important;
+      border-color: var(--accent-color) !important;
+      color: var(--accent-color) !important;
+    }
+
+    /* 深色模式下的状态文字 */
+    [data-theme="dark"] #captchaStatus,
+    [data-theme="dark"] #codeStatus,
+    [data-theme="dark"] .form-text {
+      color: var(--text-color-secondary) !important;
+    }
+
+    /* 深色模式下的链接文字 */
+    [data-theme="dark"] a {
+      color: var(--accent-color) !important;
+    }
+
+    [data-theme="dark"] a:hover {
+      color: color-mix(in srgb, var(--accent-color) 80%, white) !important;
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: var(--font-family-system);
+      background: var(--bg-image);
+      color: var(--text-color);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: var(--transition-fluid);
     }
     
     .login-container {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+      background: var(--glass-bg);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-md);
       overflow: hidden;
       width: 100%;
       max-width: 400px;
+      transition: var(--transition-fluid);
     }
-    
+
     .login-header {
-      background: var(--primary-color);
-      color: white;
+      background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 80%, #8b5cf6) 100%);
+      color: var(--header-text);
       padding: 30px;
       text-align: center;
+      border-bottom: 1px solid var(--glass-border);
     }
     
     .login-header h2 {
@@ -59,35 +171,55 @@
     
     .login-body {
       padding: 40px 30px;
+      background: var(--glass-bg);
+      color: var(--card-text);
     }
-    
+
     .form-control {
-      border-radius: 10px;
-      border: 2px solid #e9ecef;
-      padding: 12px 15px;
-      font-size: 16px;
-      transition: all 0.3s ease;
+      background: var(--glass-bg) !important;
+      backdrop-filter: blur(10px) saturate(150%) !important;
+      -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+      border: 1px solid var(--glass-border) !important;
+      border-radius: var(--radius-2xl) !important;
+      color: var(--text-color) !important;
+      padding: 12px 15px !important;
+      font-size: 16px !important;
+      transition: var(--transition-fluid) !important;
     }
-    
+
     .form-control:focus {
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-color) 20%, transparent);
+      outline: none;
     }
-    
+
+    .form-control::placeholder {
+      color: var(--text-color-muted) !important;
+    }
+
+    /* 深色模式占位符优化 */
+    [data-theme="dark"] .form-control::placeholder {
+      color: var(--text-color-muted) !important;
+      opacity: 0.8;
+    }
+
     .btn-login {
-      background: var(--primary-color);
-      border: none;
-      border-radius: 10px;
-      padding: 12px;
-      font-size: 16px;
-      font-weight: 600;
-      width: 100%;
-      transition: all 0.3s ease;
+      background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 90%, #8b5cf6) 100%) !important;
+      border: none !important;
+      border-radius: var(--radius-2xl) !important;
+      color: white !important;
+      padding: 12px !important;
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      width: 100% !important;
+      transition: var(--transition-quick) !important;
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 30%, transparent) !important;
     }
-    
+
     .btn-login:hover {
-      background: #0b5ed7;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 90%, black) 0%, color-mix(in srgb, var(--accent-color) 80%, #8b5cf6) 100%);
       transform: translateY(-2px);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--accent-color) 40%, transparent);
     }
     
     .input-group {
@@ -100,25 +232,131 @@
       left: 15px;
       top: 50%;
       transform: translateY(-50%);
-      color: var(--secondary-color);
-      z-index: 10;
+      color: var(--text-color-muted);
+      z-index: 100;
+      pointer-events: none;
+      transition: var(--transition-quick);
     }
-    
+
+    .input-group:focus-within i {
+      color: var(--accent-color);
+    }
+
     .input-group .form-control {
-      padding-left: 45px;
+      padding-left: 45px !important;
     }
-    
+
     .alert {
-      border-radius: 10px;
-      border: none;
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px) saturate(150%);
+      -webkit-backdrop-filter: blur(10px) saturate(150%);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-2xl);
+      color: var(--text-color);
+      box-shadow: var(--shadow-md);
+    }
+
+    .alert-danger {
+      background: color-mix(in srgb, var(--danger-color) 10%, var(--glass-bg));
+      border-color: color-mix(in srgb, var(--danger-color) 30%, var(--glass-border));
+      color: var(--danger-color);
     }
     
+    .btn-group .btn {
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px) saturate(150%);
+      -webkit-backdrop-filter: blur(10px) saturate(150%);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-2xl) !important;
+      color: var(--text-color);
+      font-size: 0.9rem;
+      padding: 8px 16px;
+      transition: var(--transition-quick);
+      font-weight: 500;
+    }
+
+    .btn-group .btn:hover {
+      background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg));
+      border-color: var(--accent-color);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 20%, transparent);
+    }
+
+    .btn-group .btn.active,
+    .btn-group .btn:checked + .btn {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 30%, transparent);
+    }
+
+    .btn-outline-primary {
+      border-color: var(--glass-border);
+      color: var(--text-color);
+    }
+
+    .btn-outline-primary:hover {
+      background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg));
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+    }
+
+    .btn-outline-primary.active,
+    .btn-check:checked + .btn-outline-primary {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+    }
+
     .loading {
       display: none;
     }
-    
+
     .loading.show {
       display: inline-block;
+    }
+
+    .loading .spinner-border {
+      border-color: var(--accent-color);
+      border-right-color: transparent;
+    }
+
+    /* 主题切换按钮 */
+    .theme-toggle-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+
+    .theme-toggle-btn {
+      background: var(--glass-bg);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-color);
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: var(--transition-quick);
+      box-shadow: var(--shadow-md);
+    }
+
+    .theme-toggle-btn:hover {
+      background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg));
+      border-color: var(--accent-color);
+      color: var(--accent-color);
+      transform: scale(1.05);
+      box-shadow: 0 8px 25px color-mix(in srgb, var(--accent-color) 25%, transparent);
+    }
+
+    .theme-toggle-btn:active {
+      transform: scale(0.95);
     }
 
     /* ================================
@@ -128,67 +366,108 @@
     /* 超小屏设备优化 (xs: 0-575px) */
     @media (max-width: 575.98px) {
       body {
-        padding: 10px;
+        padding: 1rem;
         align-items: flex-start;
-        padding-top: 20px;
+        padding-top: 2rem;
+        font-size: 16px; /* 防止iOS自动缩放 */
       }
 
       .login-container {
         max-width: 100%;
         margin: 0;
-        border-radius: 15px;
+        border-radius: var(--radius-2xl);
         min-height: auto;
+        box-shadow: var(--shadow-md);
       }
 
       .login-header {
-        padding: 20px 15px;
+        padding: 1.5rem 1rem;
+        background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 80%, #8b5cf6) 100%);
       }
 
       .login-header h2 {
         font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
       }
 
       .login-header p {
         font-size: 0.9rem;
+        opacity: 0.9;
+        margin: 0;
       }
 
       .login-header .fs-1 {
         font-size: 2.5rem !important;
+        margin-bottom: 1rem !important;
       }
 
       .login-body {
-        padding: 20px 15px;
+        padding: 1.5rem 1rem;
+        background: var(--glass-bg);
       }
 
       .form-control {
-        padding: 14px 15px;
-        font-size: 16px; /* 防止iOS缩放 */
-        border-radius: 8px;
+        padding: 0.875rem 1rem !important;
+        font-size: 16px !important; /* 防止iOS缩放 */
+        border-radius: var(--radius-2xl) !important;
+        min-height: 48px !important; /* 触摸友好 */
+        background: var(--glass-bg) !important;
+        border: 1px solid var(--glass-border) !important;
+        color: var(--text-color) !important;
       }
 
       .input-group .form-control {
-        padding-left: 45px;
+        padding-left: 3rem;
+      }
+
+      .input-group i {
+        left: 1rem;
+        color: var(--text-color-muted);
       }
 
       .btn-login {
-        padding: 14px;
+        padding: 0.875rem;
         font-size: 16px;
-        border-radius: 8px;
+        border-radius: var(--radius-2xl);
         min-height: 48px; /* 触摸友好 */
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 90%, #8b5cf6) 100%);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 30%, transparent);
       }
 
       .btn-group .btn {
         font-size: 0.875rem;
-        padding: 8px 12px;
+        padding: 0.625rem 0.75rem;
+        min-height: 44px;
+        border-radius: var(--radius-2xl) !important;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        color: var(--text-color);
       }
 
       .input-group {
-        margin-bottom: 16px;
+        margin-bottom: 1rem;
       }
 
       .alert {
         font-size: 0.875rem;
-        padding: 12px;
+        padding: 0.75rem;
+        border-radius: var(--radius-2xl);
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+      }
+
+      /* 主题切换按钮移动端优化 */
+      .theme-toggle-container {
+        top: 1rem;
+        right: 1rem;
+      }
+
+      .theme-toggle-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 1.1rem;
       }
     }
 
@@ -247,20 +526,39 @@
     @media (hover: none) and (pointer: coarse) {
       .btn-login:hover {
         transform: none;
-        background: var(--primary-color);
+        background: linear-gradient(135deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 90%, #8b5cf6) 100%);
       }
 
       .btn-login:active {
         transform: scale(0.98);
-        background: #0b5ed7;
+        background: linear-gradient(135deg, color-mix(in srgb, var(--accent-color) 90%, black) 0%, color-mix(in srgb, var(--accent-color) 80%, #8b5cf6) 100%);
       }
 
       .btn-group .btn:hover {
         transform: none;
+        background: var(--glass-bg);
       }
 
       .btn-group .btn:active {
         transform: scale(0.95);
+        background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg));
+      }
+
+      .theme-toggle-btn:hover {
+        transform: none;
+        background: var(--glass-bg);
+      }
+
+      .theme-toggle-btn:active {
+        transform: scale(0.95);
+        background: color-mix(in srgb, var(--accent-color) 10%, var(--glass-bg));
+      }
+
+      /* 确保触摸目标足够大 */
+      .btn,
+      .form-control,
+      .theme-toggle-btn {
+        min-height: 44px;
       }
     }
 
@@ -301,6 +599,13 @@
   </style>
 </head>
 <body>
+  <!-- 主题切换按钮 -->
+  <div class="theme-toggle-container">
+    <button class="theme-toggle-btn" onclick="toggleTheme()" title="切换主题">
+      <i class="bi bi-sun-fill" id="themeIcon"></i>
+    </button>
+  </div>
+
   <div class="login-container">
     <div class="login-header">
       <i class="bi bi-chat-dots-fill fs-1 mb-3"></i>
@@ -896,7 +1201,49 @@
       if (emailForCodeInput) {
         emailForCodeInput.addEventListener('input', updateSendCodeButton);
       }
+
+      // 初始化主题
+      initTheme();
     });
+
+    // 主题切换功能
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+
+      updateThemeIcon(newTheme);
+    }
+
+    function updateThemeIcon(theme) {
+      const themeIcon = document.getElementById('themeIcon');
+      if (theme === 'dark') {
+        themeIcon.className = 'bi bi-moon-fill';
+      } else {
+        themeIcon.className = 'bi bi-sun-fill';
+      }
+    }
+
+    function initTheme() {
+      // 从localStorage获取保存的主题，或根据系统偏好设置默认主题
+      const savedTheme = localStorage.getItem('theme');
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const defaultTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+
+      document.documentElement.setAttribute('data-theme', defaultTheme);
+      updateThemeIcon(defaultTheme);
+
+      // 监听系统主题变化
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+          const newTheme = e.matches ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          updateThemeIcon(newTheme);
+        }
+      });
+    }
   </script>
 </body>
 </html>

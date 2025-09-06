@@ -3188,25 +3188,23 @@ class DBManager:
             try:
                 cursor = self.conn.cursor()
 
-                # 获取今日发货次数：统计今天updated_at被更新的发货规则数量
-                # 这表示今日有发货活动的规则数量，作为今日发货统计的近似值
+                # 获取今日发货次数：统计今天实际发货的总次数
+                # 方法：统计今日updated_at被更新的规则的delivery_times总和
                 if user_id is not None:
-                    # 统计今日有发货活动的规则数量（updated_at为今日且有发货记录的规则）
+                    # 统计今日有发货活动的规则的发货次数总和
                     cursor.execute('''
-                    SELECT COUNT(*) as today_deliveries
+                    SELECT COALESCE(SUM(delivery_times), 0) as today_deliveries
                     FROM delivery_rules
                     WHERE user_id = ?
                     AND date(updated_at) = date('now', 'localtime')
                     AND delivery_times > 0
-                    AND date(updated_at) > date(created_at)
                     ''', (user_id,))
                 else:
                     cursor.execute('''
-                    SELECT COUNT(*) as today_deliveries
+                    SELECT COALESCE(SUM(delivery_times), 0) as today_deliveries
                     FROM delivery_rules
                     WHERE date(updated_at) = date('now', 'localtime')
                     AND delivery_times > 0
-                    AND date(updated_at) > date(created_at)
                     ''')
 
                 result = cursor.fetchone()

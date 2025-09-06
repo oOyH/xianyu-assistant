@@ -1863,7 +1863,7 @@ class XianyuLive:
             # 构建增强的通知消息
             notification_msg = f"🚨 接收消息通知\n\n" \
                              f"账号: {self.cookie_id}\n" \
-                             f"买家: {send_user_name} (ID: {send_user_id})\n" \
+                             f"买家: {send_user_name}（{send_user_id}）\n" \
                              f"商品: {item_title} (ID: {item_id or '未知'})\n"
 
             # 如果有消息状态，添加状态信息
@@ -1929,6 +1929,79 @@ class XianyuLive:
             logger.error(f"📱 处理消息通知失败: {self._safe_str(e)}")
             import traceback
             logger.error(f"📱 详细错误信息: {traceback.format_exc()}")
+
+    async def send_transaction_success_notification(self, send_user_name: str, send_user_id: str, item_id: str, chat_id: str = None):
+        """发送交易成功祝贺通知"""
+        try:
+            from db_manager import db_manager
+
+            # 获取当前账号的通知配置
+            notifications = db_manager.get_account_notifications(self.cookie_id)
+
+            if not notifications:
+                logger.debug("未配置消息通知，跳过交易成功通知")
+                return
+
+            # 获取商品信息用于通知显示
+            item_title = "未知商品"
+            if item_id:
+                try:
+                    from db_manager import db_manager
+                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
+                    if item_info and item_info.get('item_title'):
+                        item_title = item_info['item_title'].strip()
+                        # 智能截断商品标题（保留前30个字符）
+                        if len(item_title) > 30:
+                            item_title = item_title[:30] + "..."
+                except Exception as e:
+                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+
+            # 构造交易成功祝贺通知消息
+            notification_message = f"🎉 交易成功通知\n\n" \
+                                 f"账号: {self.cookie_id}\n" \
+                                 f"买家: {send_user_name}（{send_user_id}）\n" \
+                                 f"商品: {item_title} (ID: {item_id})\n" \
+                                 f"聊天ID: {chat_id or '未知'}\n" \
+                                 f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
+                                 f"🎉 恭喜！交易完成"
+
+            # 发送通知到所有已启用的通知渠道
+            for notification in notifications:
+                if notification.get('enabled', False):
+                    channel_type = notification.get('channel_type', 'qq')
+                    channel_config = notification.get('channel_config', '')
+
+                    try:
+                        # 解析配置数据
+                        config_data = self._parse_notification_config(channel_config)
+
+                        match channel_type:
+                            case 'qq':
+                                await self._send_qq_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到QQ")
+                            case 'ding_talk' | 'dingtalk':
+                                await self._send_dingtalk_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到钉钉")
+                            case 'email':
+                                await self._send_email_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到邮箱")
+                            case 'webhook':
+                                await self._send_webhook_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到Webhook")
+                            case 'wechat':
+                                await self._send_wechat_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到微信")
+                            case 'telegram':
+                                await self._send_telegram_notification(config_data, notification_message)
+                                logger.info(f"已发送交易成功通知到Telegram")
+                            case _:
+                                logger.warning(f"不支持的通知渠道类型: {channel_type}")
+
+                    except Exception as notify_error:
+                        logger.error(f"发送交易成功通知失败 ({notification.get('channel_name', 'Unknown')}): {self._safe_str(notify_error)}")
+
+        except Exception as e:
+            logger.error(f"处理交易成功通知失败: {self._safe_str(e)}")
 
     def _parse_notification_config(self, config: str) -> dict:
         """解析通知配置数据"""
@@ -2554,15 +2627,29 @@ class XianyuLive:
                 except Exception as e:
                     logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
 
-            # 构造增强的通知消息
-            notification_message = f"🚨 自动发货通知\n\n" \
-                                 f"账号: {self.cookie_id}\n" \
-                                 f"买家: {send_user_name} (ID: {send_user_id})\n" \
-                                 f"商品: {item_title} (ID: {item_id})\n" \
-                                 f"聊天ID: {chat_id or '未知'}\n" \
-                                 f"结果: {error_message}\n" \
-                                 f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
-                                 f"请及时处理！"
+            # 判断是发货成功还是失败，构造相应的通知消息
+            is_success = "发货成功" in error_message
+
+            if is_success:
+                # 发货成功的通知
+                notification_message = f"🎉 自动发货成功通知\n\n" \
+                                     f"账号: {self.cookie_id}\n" \
+                                     f"买家: {send_user_name}（{send_user_id}）\n" \
+                                     f"商品: {item_title} (ID: {item_id})\n" \
+                                     f"聊天ID: {chat_id or '未知'}\n" \
+                                     f"结果: {error_message}\n" \
+                                     f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
+                                     f"🎉 恭喜！发货成功"
+            else:
+                # 发货失败的通知
+                notification_message = f"🚨 自动发货异常通知\n\n" \
+                                     f"账号: {self.cookie_id}\n" \
+                                     f"买家: {send_user_name}（{send_user_id}）\n" \
+                                     f"商品: {item_title} (ID: {item_id})\n" \
+                                     f"聊天ID: {chat_id or '未知'}\n" \
+                                     f"错误: {error_message}\n" \
+                                     f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
+                                     f"⚠️ 请及时处理！"
 
             # 发送通知到所有已启用的通知渠道
             for notification in notifications:
@@ -4662,16 +4749,38 @@ class XianyuLive:
                 message_10 = message_1["10"]
 
                 # 正确获取买家昵称和消息状态
-                send_user_nick = message_10.get("senderNick", "")  # 买家真实昵称
                 send_user_id = message_10.get("senderUserId", "unknown")
-                message_status = message_10.get("reminderTitle", "")  # 消息状态
                 send_message = message_10.get("reminderContent", "")
 
-                # 构建买家显示名称：优先使用昵称，否则使用ID
+                # 买家昵称在reminderTitle字段中，但需要过滤系统消息
+                reminder_title = message_10.get("reminderTitle", "")
+                message_status = ""  # 消息状态需要从其他地方获取
+
+                # 系统消息列表（这些不是真正的买家昵称）
+                system_reminder_messages = [
+                    '发来一条新消息', '发来一条消息', '交易消息',
+                    '快给ta一个评价吧～', '等待你发货', '等待买家付款',
+                    '交易关闭', '你已发货', '已发货'
+                ]
+
+                # 如果reminderTitle是系统消息，则不使用它作为昵称
+                if reminder_title and reminder_title.strip() not in system_reminder_messages:
+                    send_user_nick = reminder_title.strip()
+                else:
+                    # 尝试从其他字段获取昵称
+                    send_user_nick = message_10.get("senderNick", "") or \
+                                   message_10.get("senderName", "") or \
+                                   message_10.get("nick", "") or \
+                                   message_10.get("nickName", "") or \
+                                   message_10.get("userName", "")
+
+                # 构建买家显示名称：优先使用昵称，否则使用用户ID格式
                 if send_user_nick and send_user_nick.strip():
                     send_user_name = send_user_nick.strip()
                 else:
-                    send_user_name = f"买家ID: {send_user_id}"
+                    # 获取昵称失败时，使用更清晰的用户ID格式
+                    send_user_name = f"用户{send_user_id}"
+                    logger.debug(f"📱 未找到买家昵称，使用用户ID格式: {send_user_name}")
 
                 chat_id_raw = message_1.get("2", "")
                 chat_id = chat_id_raw.split('@')[0] if '@' in str(chat_id_raw) else str(chat_id_raw)
@@ -4694,13 +4803,51 @@ class XianyuLive:
 
                 return
             else:
-                logger.info(f"[{msg_time}] 【收到】用户: {send_user_name} (ID: {send_user_id}), 商品({item_id}): {send_message}")
+                logger.info(f"[{msg_time}] 【收到】用户: {send_user_name}（{send_user_id}）, 商品({item_id}): {send_message}")
 
-                # 🔔 立即发送消息通知（独立于自动回复功能）
-                try:
-                    await self.send_notification(send_user_name, send_user_id, send_message, item_id, chat_id, message_status)
-                except Exception as notify_error:
-                    logger.error(f"📱 发送消息通知失败: {self._safe_str(notify_error)}")
+                # 🔔 发送消息通知前先过滤系统状态消息
+                should_send_notification = True
+                is_transaction_success = False
+
+                # 检查是否为交易成功消息
+                if send_message == '[买家确认收货，交易成功]':
+                    is_transaction_success = True
+                    should_send_notification = True  # 交易成功要发送特殊通知
+                    logger.debug(f"📱 检测到交易成功消息，将发送祝贺通知")
+                else:
+                    # 过滤其他系统状态消息
+                    system_status_messages = [
+                        '[你已发货]',
+                        '[你已确认收货，交易成功]',
+                        '[我已拍下，待付款]',
+                        '[交易关闭]',
+                        '快给ta一个评价吧～'
+                    ]
+
+                    # 检查消息内容或状态是否为系统状态
+                    if send_message in system_status_messages:
+                        should_send_notification = False
+                        logger.debug(f"📱 系统状态消息不发送通知: {send_message}")
+                    elif message_status and any(status in message_status for status in ['你已发货', '已发货', '交易关闭', '等待买家付款']):
+                        should_send_notification = False
+                        logger.debug(f"📱 系统状态不发送通知: {message_status}")
+                    elif reminder_title in ['交易消息', '快给ta一个评价吧～']:
+                        should_send_notification = False
+                        logger.debug(f"📱 系统提示消息不发送通知: {reminder_title}")
+
+                # 发送消息通知
+                if should_send_notification:
+                    try:
+                        if is_transaction_success:
+                            # 发送交易成功的特殊通知
+                            await self.send_transaction_success_notification(send_user_name, send_user_id, item_id, chat_id)
+                        else:
+                            # 发送普通消息通知
+                            await self.send_notification(send_user_name, send_user_id, send_message, item_id, chat_id, message_status)
+                    except Exception as notify_error:
+                        logger.error(f"📱 发送消息通知失败: {self._safe_str(notify_error)}")
+                else:
+                    logger.debug(f"📱 跳过系统状态消息通知: {send_message} | 状态: {message_status}")
 
 
 
