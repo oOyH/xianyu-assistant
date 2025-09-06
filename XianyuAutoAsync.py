@@ -1819,7 +1819,7 @@ class XianyuLive:
         except:
             return 0.0
 
-    async def send_notification(self, send_user_name: str, send_user_id: str, send_message: str, item_id: str = None, chat_id: str = None):
+    async def send_notification(self, send_user_name: str, send_user_id: str, send_message: str, item_id: str = None, chat_id: str = None, message_status: str = None):
         """发送消息通知"""
         try:
             from db_manager import db_manager
@@ -1846,14 +1846,33 @@ class XianyuLive:
 
             logger.info(f"📱 找到 {len(notifications)} 个通知渠道配置")
 
-            # 构建通知消息
+            # 获取商品信息用于通知显示
+            item_title = "未知商品"
+            if item_id and item_id != '未知':
+                try:
+                    from db_manager import db_manager
+                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
+                    if item_info and item_info.get('item_title'):
+                        item_title = item_info['item_title'].strip()
+                        # 智能截断商品标题（保留前30个字符）
+                        if len(item_title) > 30:
+                            item_title = item_title[:30] + "..."
+                except Exception as e:
+                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+
+            # 构建增强的通知消息
             notification_msg = f"🚨 接收消息通知\n\n" \
                              f"账号: {self.cookie_id}\n" \
                              f"买家: {send_user_name} (ID: {send_user_id})\n" \
-                             f"商品ID: {item_id or '未知'}\n" \
-                             f"聊天ID: {chat_id or '未知'}\n" \
-                             f"消息内容: {send_message}\n" \
-                             f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                             f"商品: {item_title} (ID: {item_id or '未知'})\n"
+
+            # 如果有消息状态，添加状态信息
+            if message_status and message_status.strip():
+                notification_msg += f"状态: {message_status}\n"
+
+            notification_msg += f"聊天ID: {chat_id or '未知'}\n" \
+                              f"消息内容: {send_message}\n" \
+                              f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
             # 发送通知到各个渠道
             for i, notification in enumerate(notifications, 1):
@@ -2366,7 +2385,7 @@ class XianyuLive:
             # 构造通知消息
             notification_msg = f"""🔴 闲鱼账号Token刷新异常
 
-账号ID: {self.cookie_id}
+账号: {self.cookie_id}
 聊天ID: {chat_id or '未知'}
 异常时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}
 异常信息: {error_message}
@@ -2521,11 +2540,25 @@ class XianyuLive:
                 logger.debug("未配置消息通知，跳过自动发货通知")
                 return
 
-            # 构造通知消息
+            # 获取商品信息用于通知显示
+            item_title = "未知商品"
+            if item_id:
+                try:
+                    from db_manager import db_manager
+                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
+                    if item_info and item_info.get('item_title'):
+                        item_title = item_info['item_title'].strip()
+                        # 智能截断商品标题（保留前30个字符）
+                        if len(item_title) > 30:
+                            item_title = item_title[:30] + "..."
+                except Exception as e:
+                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+
+            # 构造增强的通知消息
             notification_message = f"🚨 自动发货通知\n\n" \
                                  f"账号: {self.cookie_id}\n" \
                                  f"买家: {send_user_name} (ID: {send_user_id})\n" \
-                                 f"商品ID: {item_id}\n" \
+                                 f"商品: {item_title} (ID: {item_id})\n" \
                                  f"聊天ID: {chat_id or '未知'}\n" \
                                  f"结果: {error_message}\n" \
                                  f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
@@ -4627,9 +4660,18 @@ class XianyuLive:
 
                 create_time = int(message_1.get("5", 0))
                 message_10 = message_1["10"]
-                send_user_name = message_10.get("senderNick", message_10.get("reminderTitle", "未知用户"))
+
+                # 正确获取买家昵称和消息状态
+                send_user_nick = message_10.get("senderNick", "")  # 买家真实昵称
                 send_user_id = message_10.get("senderUserId", "unknown")
+                message_status = message_10.get("reminderTitle", "")  # 消息状态
                 send_message = message_10.get("reminderContent", "")
+
+                # 构建买家显示名称：优先使用昵称，否则使用ID
+                if send_user_nick and send_user_nick.strip():
+                    send_user_name = send_user_nick.strip()
+                else:
+                    send_user_name = f"买家ID: {send_user_id}"
 
                 chat_id_raw = message_1.get("2", "")
                 chat_id = chat_id_raw.split('@')[0] if '@' in str(chat_id_raw) else str(chat_id_raw)
@@ -4656,7 +4698,7 @@ class XianyuLive:
 
                 # 🔔 立即发送消息通知（独立于自动回复功能）
                 try:
-                    await self.send_notification(send_user_name, send_user_id, send_message, item_id, chat_id)
+                    await self.send_notification(send_user_name, send_user_id, send_message, item_id, chat_id, message_status)
                 except Exception as notify_error:
                     logger.error(f"📱 发送消息通知失败: {self._safe_str(notify_error)}")
 
