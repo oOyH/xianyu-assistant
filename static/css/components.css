@@ -1593,6 +1593,73 @@ body.dark-mode .btn-outline-danger {
 }
 
 /* ================================
+   模态框层级优化
+   ================================ */
+/* 提示词帮助模态框需要显示在AI配置模态框之上 */
+#promptHelpModal {
+  z-index: 1060 !important;
+}
+
+#promptHelpModal .modal-backdrop {
+  z-index: 1059 !important;
+}
+
+/* 确保模态框内容正确显示 */
+#promptHelpModal .modal-dialog {
+  z-index: 1061 !important;
+}
+
+/* 移动端模态框优化 */
+@media (max-width: 767.98px) {
+  #promptHelpModal .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+    max-height: calc(100vh - 1rem);
+  }
+
+  #promptHelpModal .modal-content {
+    max-height: calc(100vh - 1rem);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #promptHelpModal .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 1rem;
+  }
+
+  #promptHelpModal .modal-header {
+    padding: 1rem;
+    flex-shrink: 0;
+  }
+
+  #promptHelpModal .modal-footer {
+    padding: 1rem;
+    flex-shrink: 0;
+  }
+
+  /* 移动端表格优化 */
+  #promptHelpModal .table-responsive {
+    font-size: 0.875rem;
+  }
+
+  #promptHelpModal .card {
+    margin-bottom: 1rem;
+  }
+
+  #promptHelpModal .card-body {
+    padding: 0.75rem;
+  }
+
+  #promptHelpModal pre {
+    font-size: 0.75rem;
+    overflow-x: auto;
+  }
+}
+
+/* ================================
    API参数提示样式
    ================================ */
 .param-item {

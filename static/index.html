@@ -2986,6 +2986,141 @@
   <!-- 提示消息容器 -->
   <div class="toast-container"></div>
 
+  <!-- 提示词帮助模态框 -->
+  <div class="modal fade" id="promptHelpModal" tabindex="-1" style="z-index: 1060;">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-chat-quote me-2"></i>AI回复自定义提示词详细说明
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>提示词作用：</strong>自定义提示词用于指导AI如何理解用户消息并生成合适的回复。系统会根据用户消息类型选择对应的提示词。
+          </div>
+
+          <h6><i class="bi bi-gear me-2"></i>JSON格式要求</h6>
+          <div class="bg-light p-3 rounded mb-3">
+            <pre class="mb-0"><code>{
+  "classify": "分类提示词",
+  "price": "议价提示词",
+  "tech": "技术提示词",
+  "default": "默认提示词"
+}</code></pre>
+          </div>
+
+          <h6><i class="bi bi-list-ul me-2"></i>四种提示词类型</h6>
+          <div class="row">
+            <div class="col-lg-6 col-md-12">
+              <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                  <strong>classify - 意图分类</strong>
+                </div>
+                <div class="card-body">
+                  <p class="mb-2"><strong>作用：</strong>判断用户消息属于哪种类型</p>
+                  <p class="mb-2"><strong>返回：</strong>price/tech/default</p>
+                  <p class="mb-2"><strong>示例：</strong></p>
+                  <small class="text-muted">你是专业的客服意图识别专家。分析用户消息，准确判断意图类型：price(价格议价)、tech(技术咨询)、default(其他咨询)。只返回一个词，不要解释。</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6 col-md-12">
+              <div class="card mb-3">
+                <div class="card-header bg-success text-white">
+                  <strong>price - 议价回复</strong>
+                </div>
+                <div class="card-body">
+                  <p class="mb-2"><strong>作用：</strong>处理价格、优惠、议价相关消息</p>
+                  <p class="mb-2"><strong>特点：</strong>支持议价策略和优惠控制</p>
+                  <p class="mb-2"><strong>示例：</strong></p>
+                  <small class="text-muted">你是金牌销售顾问，精通议价艺术。语言亲切自然，30-50字。根据轮数递进让利，先认同需求→强调价值→适度让步。</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-lg-6 col-md-12">
+              <div class="card mb-3">
+                <div class="card-header bg-warning text-white">
+                  <strong>tech - 技术回复</strong>
+                </div>
+                <div class="card-body">
+                  <p class="mb-2"><strong>作用：</strong>回答产品功能、参数、使用方法</p>
+                  <p class="mb-2"><strong>特点：</strong>专业、准确、实用</p>
+                  <p class="mb-2"><strong>示例：</strong></p>
+                  <small class="text-muted">你是资深产品技术专家，专业解答各类技术问题。语言专业准确，通俗易懂，25-45字。提供具体操作步骤和注意事项。</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6 col-md-12">
+              <div class="card mb-3">
+                <div class="card-header bg-secondary text-white">
+                  <strong>default - 默认回复</strong>
+                </div>
+                <div class="card-body">
+                  <p class="mb-2"><strong>作用：</strong>处理其他一般性咨询</p>
+                  <p class="mb-2"><strong>特点：</strong>友好、全面、实用</p>
+                  <p class="mb-2"><strong>示例：</strong></p>
+                  <small class="text-muted">你是五星级电商客服专家，提供温暖贴心的购物体验。语言温暖亲切，像朋友聊天，25-45字。主动热情，超出预期。</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h6><i class="bi bi-magic me-2"></i>可用变量</h6>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>变量</th>
+                  <th>说明</th>
+                  <th>示例</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>商品信息</code></td>
+                  <td>自动提供商品标题、价格、描述</td>
+                  <td>商品标题: iPhone 14<br>商品价格: 5999元</td>
+                </tr>
+                <tr>
+                  <td><code>对话历史</code></td>
+                  <td>最近10条对话记录</td>
+                  <td>user: 你好<br>assistant: 您好，欢迎咨询</td>
+                </tr>
+                <tr>
+                  <td><code>议价设置</code></td>
+                  <td>当前议价次数、最大轮数、优惠限制</td>
+                  <td>当前议价次数: 1<br>最大议价轮数: 3</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h6><i class="bi bi-lightbulb me-2"></i>编写技巧</h6>
+          <div class="alert alert-warning">
+            <ul class="mb-0">
+              <li><strong>语言要求：</strong>建议限制回复长度（如≤40字），保持简洁</li>
+              <li><strong>角色定位：</strong>明确AI的身份（如销售专家、技术专家）</li>
+              <li><strong>行为指导：</strong>说明具体的回复策略和注意事项</li>
+              <li><strong>结合信息：</strong>提醒AI利用商品信息和对话历史</li>
+              <li><strong>避免承诺：</strong>不要让AI做出无法兑现的承诺</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" onclick="fillDefaultPrompts()">
+            <i class="bi bi-download me-1"></i>使用默认模板
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 返回顶部按钮 -->
   <button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="返回顶部">
     <i class="bi bi-arrow-up"></i>
@@ -3262,16 +3397,23 @@
 
             <!-- 提示词设置 -->
             <div class="card mb-3" id="promptSettings" style="display: none;">
-              <div class="card-header">
+              <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="bi bi-chat-quote me-2"></i>提示词设置</h6>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="showPromptHelp()">
+                  <i class="bi bi-question-circle me-1"></i>查看说明
+                </button>
               </div>
               <div class="card-body">
                 <div class="mb-3">
                   <label class="form-label">自定义提示词 (JSON格式)</label>
-                  <textarea class="form-control" id="customPrompts" rows="8"
-                            placeholder='{"classify": "分类提示词", "price": "议价提示词", "tech": "技术提示词", "default": "默认提示词"}'></textarea>
+                  <textarea class="form-control" id="customPrompts" rows="12"
+                            placeholder='留空使用系统默认提示词，或按以下格式自定义：&#10;{&#10;  "classify": "你是意图分类专家...",&#10;  "price": "你是销售专家，擅长议价...",&#10;  "tech": "你是技术专家，解答产品问题...",&#10;  "default": "你是客服，提供优质服务..."&#10;}'></textarea>
                   <small class="form-text text-muted">
-                    留空使用系统默认提示词。格式：{"classify": "...", "price": "...", "tech": "...", "default": "..."}
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>格式要求：</strong>JSON格式，包含4个提示词类型：classify(分类)、price(议价)、tech(技术)、default(默认)
+                    <br>
+                    <i class="bi bi-lightbulb me-1"></i>
+                    <strong>提示：</strong>留空使用系统默认提示词，或点击"查看说明"了解详细写法
                   </small>
                 </div>
               </div>

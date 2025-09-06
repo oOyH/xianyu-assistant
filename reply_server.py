@@ -3606,6 +3606,31 @@ def delete_delivery_rule(rule_id: int, current_user: Dict[str, Any] = Depends(ge
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/delivery-stats")
+def get_delivery_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """获取发货统计信息"""
+    try:
+        from db_manager import db_manager
+        user_id = current_user['user_id']
+        stats = db_manager.get_today_delivery_stats(user_id)
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        logger.error(f"获取发货统计失败: {e}")
+        return {
+            "success": False,
+            "message": f"获取发货统计失败: {str(e)}",
+            "data": {
+                'total_rules': 0,
+                'active_rules': 0,
+                'today_deliveries': 0,
+                'total_deliveries': 0
+            }
+        }
+
+
 # ==================== 备份和恢复 API ====================
 
 @app.get("/backup/export")

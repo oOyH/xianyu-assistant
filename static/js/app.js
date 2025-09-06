@@ -447,7 +447,7 @@ function updateDashboardAccountsList(accounts) {
         <span class="badge ${isEnabled ? 'bg-primary' : 'bg-secondary'}">${keywordCount} 个关键词</span>
         </td>
         <td>${status}</td>
-        <td>
+        <td class="text-center">
         <small class="text-muted">${new Date().toLocaleString()}</small>
         </td>
     `;
@@ -2681,6 +2681,130 @@ function toggleCustomModelInput() {
     }
 }
 
+// 显示提示词帮助
+function showPromptHelp() {
+    const helpModal = document.getElementById('promptHelpModal');
+
+    // 确保模态框在正确的层级显示
+    helpModal.style.zIndex = '1060';
+
+    // 创建并显示模态框
+    const modal = new bootstrap.Modal(helpModal, {
+        backdrop: true,     // 允许点击背景关闭
+        keyboard: true      // 允许ESC键关闭
+    });
+
+    modal.show();
+
+    // 确保模态框显示后调整层级
+    helpModal.addEventListener('shown.bs.modal', function() {
+        this.style.zIndex = '1060';
+        // 调整backdrop层级
+        const backdrop = document.querySelector('.modal-backdrop:last-child');
+        if (backdrop) {
+            backdrop.style.zIndex = '1059';
+        }
+    }, { once: true });
+
+    // 监听模态框隐藏事件，确保正确清理
+    helpModal.addEventListener('hidden.bs.modal', function() {
+        // 清理可能残留的backdrop
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => {
+            if (!backdrop.closest('.modal.show')) {
+                backdrop.remove();
+            }
+        });
+
+        // 重置body样式
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        document.body.style.overflow = '';
+
+        // 确保AI配置模态框仍然可用
+        const aiModal = document.getElementById('aiReplyConfigModal');
+        if (aiModal && aiModal.classList.contains('show')) {
+            document.body.classList.add('modal-open');
+        }
+    }, { once: true });
+}
+
+// 填充默认提示词模板
+function fillDefaultPrompts() {
+    const defaultPrompts = {
+        "classify": "你是专业的客服意图识别专家。分析用户消息，准确判断意图类型：\n\n🏷️ 分类规则：\n- price: 价格议价（便宜点、打折、优惠、降价、多少钱最低、能不能少点）\n- tech: 技术咨询（怎么用、参数、规格、兼容性、故障、使用方法、功能介绍）\n- default: 其他咨询（物流、售后、商品详情、购买流程、退换货等）\n\n⚡ 输出要求：只返回一个词：price 或 tech 或 default，不要任何解释。",
+
+        "price": "你是金牌销售顾问，精通议价艺术。\n\n🎯 回复策略：\n• 语言风格：亲切自然，每句话8-12字，总计30-50字\n• 议价原则：根据轮数递进让利，第1轮小幅(2-5%)，第2轮中等(5-8%)，第3轮接近上限\n• 心理技巧：先认同需求→强调价值→适度让步→营造紧迫感\n• 话术模板：\"理解您的想法～这个价格确实很实惠了，考虑到品质和服务，我再给您申请X元优惠，您看如何？\"\n\n📊 必须考虑：\n- 当前议价轮数和剩余次数\n- 最大优惠限制（百分比和金额）\n- 商品原价和成本底线\n- 用户历史对话态度\n\n🚫 禁止：超出优惠限制、承诺无法兑现的服务、使用生硬的拒绝语言",
+
+        "tech": "你是资深产品技术专家，专业解答各类技术问题。\n\n🔧 回复要求：\n• 语言风格：专业准确，通俗易懂，25-45字\n• 回答结构：核心答案→简要说明→使用建议\n• 专业度：基于商品真实参数，避免夸大宣传\n• 实用性：提供具体操作步骤或注意事项\n\n📋 回答重点：\n- 产品功能特性和技术参数\n- 使用方法和操作步骤\n- 兼容性和适用场景\n- 常见问题和解决方案\n- 维护保养建议\n\n✅ 优质示例：\"这款支持蓝牙5.0，连接稳定。使用时长按3秒开机，自动配对。建议定期充电保持电量。\"\n\n🚫 避免：模糊回答、过度承诺、超出商品实际功能的描述",
+
+        "default": "你是五星级电商客服专家，提供温暖贴心的购物体验。\n\n💝 服务理念：\n• 语言风格：温暖亲切，像朋友聊天，25-45字\n• 服务态度：主动热情，换位思考，超出预期\n• 回复结构：问候确认→核心解答→额外关怀\n\n🛍️ 常见场景处理：\n- 商品咨询：详细介绍卖点，对比优势，推荐搭配\n- 物流问题：说明时效，提供查询方式，跟进服务\n- 售后服务：耐心解释政策，提供解决方案，表达关怀\n- 购买流程：引导下单，说明优惠，确认需求\n\n🌟 金牌话术：\n\"亲，很高兴为您服务～[具体解答]。还有什么需要了解的吗？我们会确保您的购物体验满意哦！\"\n\n💡 增值服务：主动提醒优惠活动、推荐相关商品、提供使用小贴士"
+    };
+
+    document.getElementById('customPrompts').value = JSON.stringify(defaultPrompts, null, 2);
+
+    // 关闭帮助模态框
+    const helpModalElement = document.getElementById('promptHelpModal');
+    const modal = bootstrap.Modal.getInstance(helpModalElement);
+    if (modal) {
+        modal.hide();
+    } else {
+        // 如果没有实例，直接隐藏
+        helpModalElement.classList.remove('show');
+        helpModalElement.style.display = 'none';
+        helpModalElement.setAttribute('aria-hidden', 'true');
+        helpModalElement.removeAttribute('aria-modal');
+
+        // 清理backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+
+        // 重置body状态
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        document.body.style.overflow = '';
+
+        // 确保AI配置模态框仍然可用
+        const aiModal = document.getElementById('aiReplyConfigModal');
+        if (aiModal && aiModal.classList.contains('show')) {
+            document.body.classList.add('modal-open');
+        }
+    }
+
+    showToast('已填充优化版提示词模板', 'success');
+}
+
+// 清理模态框状态的通用函数
+function cleanupModalState() {
+    // 清理所有可能残留的backdrop
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        const associatedModal = document.querySelector('.modal.show');
+        if (!associatedModal) {
+            backdrop.remove();
+        }
+    });
+
+    // 检查是否还有显示的模态框
+    const visibleModals = document.querySelectorAll('.modal.show');
+    if (visibleModals.length === 0) {
+        // 如果没有显示的模态框，重置body状态
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        document.body.style.overflow = '';
+    }
+}
+
+// 页面加载时绑定清理事件
+document.addEventListener('DOMContentLoaded', function() {
+    // 监听所有模态框的隐藏事件
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', cleanupModalState);
+    });
+});
+
 // 监听默认回复启用状态变化
 document.addEventListener('DOMContentLoaded', function() {
     const enabledCheckbox = document.getElementById('editDefaultReplyEnabled');
@@ -4355,7 +4479,9 @@ async function loadDeliveryRules() {
     if (response.ok) {
         const rules = await response.json();
         renderDeliveryRulesList(rules);
-        updateDeliveryStats(rules);
+
+        // 加载真实的发货统计数据
+        await loadDeliveryStats();
 
         // 同时加载卡券列表用于下拉选择
         loadCardsForSelect();
@@ -4453,17 +4579,62 @@ function renderDeliveryRulesList(rules) {
     });
 }
 
-// 更新发货统计
-function updateDeliveryStats(rules) {
-    const totalRules = rules.length;
-    const activeRules = rules.filter(rule => rule.enabled).length;
-    const todayDeliveries = 0; // 需要从后端获取今日发货统计
-    const totalDeliveries = rules.reduce((sum, rule) => sum + (rule.delivery_times || 0), 0);
+// 加载发货统计数据
+async function loadDeliveryStats() {
+    try {
+        const response = await fetch(`${apiBase}/delivery-stats`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
 
-    document.getElementById('totalRules').textContent = totalRules;
-    document.getElementById('activeRules').textContent = activeRules;
-    document.getElementById('todayDeliveries').textContent = todayDeliveries;
-    document.getElementById('totalDeliveries').textContent = totalDeliveries;
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                const stats = result.data;
+                updateDeliveryStatsDisplay(stats);
+            } else {
+                console.error('获取发货统计失败:', result.message);
+                // 使用默认值
+                updateDeliveryStatsDisplay({
+                    total_rules: 0,
+                    active_rules: 0,
+                    today_deliveries: 0,
+                    total_deliveries: 0
+                });
+            }
+        } else {
+            console.error('发货统计API请求失败');
+            updateDeliveryStatsDisplay({
+                total_rules: 0,
+                active_rules: 0,
+                today_deliveries: 0,
+                total_deliveries: 0
+            });
+        }
+    } catch (error) {
+        console.error('加载发货统计失败:', error);
+        updateDeliveryStatsDisplay({
+            total_rules: 0,
+            active_rules: 0,
+            today_deliveries: 0,
+            total_deliveries: 0
+        });
+    }
+}
+
+// 更新发货统计显示
+function updateDeliveryStatsDisplay(stats) {
+    document.getElementById('totalRules').textContent = stats.total_rules || 0;
+    document.getElementById('activeRules').textContent = stats.active_rules || 0;
+    document.getElementById('todayDeliveries').textContent = stats.today_deliveries || 0;
+    document.getElementById('totalDeliveries').textContent = stats.total_deliveries || 0;
+}
+
+// 兼容性：保留原有的更新发货统计方法（用于向后兼容）
+function updateDeliveryStats(rules) {
+    // 现在直接调用新的统计加载方法
+    loadDeliveryStats();
 }
 
 // 显示添加发货规则模态框

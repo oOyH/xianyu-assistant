@@ -5,17 +5,17 @@
     /* 字体系统 - Apple San Francisco 风格 */
     --font-family-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
 
-    /* 浅色模式调色板 */
-    --bg-color-light: #f0f2f5;
-    --bg-image-light: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
-    --text-color-light: #1d1d1f;
-    --text-color-secondary-light: #6e6e73;
-    --text-color-muted-light: #8e8e93;
-    --accent-color-light: #007aff;
-    --glass-bg-light: rgba(242, 242, 247, 0.85);
+    /* 浅色模式调色板 - 优化颜色饱和度 */
+    --bg-color-light: #f8fafc;
+    --bg-image-light: linear-gradient(120deg, #fdfbfb 0%, #f1f5f9 100%);
+    --text-color-light: #1e293b;
+    --text-color-secondary-light: #64748b;
+    --text-color-muted-light: #94a3b8;
+    --accent-color-light: #3b82f6;
+    --glass-bg-light: rgba(248, 250, 252, 0.85);
     --glass-border-light: rgba(255, 255, 255, 0.6);
-    --shadow-color-light: rgba(0, 0, 0, 0.1);
-    --card-text-light: #1d1d1f;
+    --shadow-color-light: rgba(0, 0, 0, 0.08);
+    --card-text-light: #1e293b;
     --header-text-light: #ffffff;
 
     /* 深色模式调色板 */
@@ -31,13 +31,13 @@
     --card-text-dark: #f5f5f7;
     --header-text-dark: #ffffff;
 
-    /* 状态颜色 */
-    --success-color-light: #30d158;
-    --success-color-dark: #32d74b;
-    --danger-color-light: #ff3b30;
-    --danger-color-dark: #ff453a;
-    --warning-color-light: #ff9500;
-    --warning-color-dark: #ff9f0a;
+    /* 状态颜色 - 降低饱和度，更柔和 */
+    --success-color-light: #4ade80;
+    --success-color-dark: #22c55e;
+    --danger-color-light: #f87171;
+    --danger-color-dark: #ef4444;
+    --warning-color-light: #fbbf24;
+    --warning-color-dark: #f59e0b;
 
     /* 通用变量 - Liquid Glass 核心 */
     --radius-2xl: 1.5rem;

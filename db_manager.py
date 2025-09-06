@@ -3182,6 +3182,89 @@ class DBManager:
             except Exception as e:
                 logger.error(f"更新发货次数失败: {e}")
 
+    def get_today_delivery_stats(self, user_id: int = None):
+        """获取今日发货统计信息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+
+                # 获取今日发货次数：统计今天updated_at被更新的发货规则数量
+                # 这表示今日有发货活动的规则数量，作为今日发货统计的近似值
+                if user_id is not None:
+                    # 统计今日有发货活动的规则数量（updated_at为今日且有发货记录的规则）
+                    cursor.execute('''
+                    SELECT COUNT(*) as today_deliveries
+                    FROM delivery_rules
+                    WHERE user_id = ?
+                    AND date(updated_at) = date('now', 'localtime')
+                    AND delivery_times > 0
+                    AND date(updated_at) > date(created_at)
+                    ''', (user_id,))
+                else:
+                    cursor.execute('''
+                    SELECT COUNT(*) as today_deliveries
+                    FROM delivery_rules
+                    WHERE date(updated_at) = date('now', 'localtime')
+                    AND delivery_times > 0
+                    AND date(updated_at) > date(created_at)
+                    ''')
+
+                result = cursor.fetchone()
+                today_deliveries = result[0] if result else 0
+
+                # 获取总发货次数
+                if user_id is not None:
+                    cursor.execute('''
+                    SELECT COALESCE(SUM(delivery_times), 0) as total_deliveries
+                    FROM delivery_rules
+                    WHERE user_id = ?
+                    ''', (user_id,))
+                else:
+                    cursor.execute('''
+                    SELECT COALESCE(SUM(delivery_times), 0) as total_deliveries
+                    FROM delivery_rules
+                    ''')
+
+                result = cursor.fetchone()
+                total_deliveries = result[0] if result else 0
+
+                # 获取规则统计
+                if user_id is not None:
+                    cursor.execute('''
+                    SELECT
+                        COUNT(*) as total_rules,
+                        COUNT(CASE WHEN enabled = 1 THEN 1 END) as active_rules
+                    FROM delivery_rules
+                    WHERE user_id = ?
+                    ''', (user_id,))
+                else:
+                    cursor.execute('''
+                    SELECT
+                        COUNT(*) as total_rules,
+                        COUNT(CASE WHEN enabled = 1 THEN 1 END) as active_rules
+                    FROM delivery_rules
+                    ''')
+
+                result = cursor.fetchone()
+                total_rules = result[0] if result else 0
+                active_rules = result[1] if result else 0
+
+                return {
+                    'total_rules': total_rules,
+                    'active_rules': active_rules,
+                    'today_deliveries': today_deliveries,
+                    'total_deliveries': total_deliveries
+                }
+
+            except Exception as e:
+                logger.error(f"获取今日发货统计失败: {e}")
+                return {
+                    'total_rules': 0,
+                    'active_rules': 0,
+                    'today_deliveries': 0,
+                    'total_deliveries': 0
+                }
+
     def get_delivery_rules_by_keyword_and_spec(self, keyword: str, spec_name: str = None, spec_value: str = None):
         """根据关键字和规格信息获取匹配的发货规则（支持多规格）"""
         with self.lock:

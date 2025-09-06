@@ -141,6 +141,17 @@
   transition: all var(--transition-fluid);
 }
 
+/* 账号详情表格优化 */
+#dashboardAccountsList th:last-child,
+#dashboardAccountsList td:last-child {
+  text-align: center;
+}
+
+#dashboardAccountsList .text-muted {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .stat-card:hover {
   transform: translateY(-5px) scale(1.02);
   box-shadow: var(--shadow-lg);
