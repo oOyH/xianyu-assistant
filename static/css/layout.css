@@ -184,8 +184,8 @@
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-md);
   margin: 0 0 2rem 0; /* 紧贴main-content顶部 */
-  position: sticky;
-  top: 1rem; /* sticky时距离浏览器顶部1rem */
+  position: static !important; /* 强制改为static，让标题跟随滚动 */
+  top: auto !important; /* 重置top属性 */
   z-index: 100;
   /* 确保标题基线对齐 */
   display: flex;
@@ -274,8 +274,7 @@
 
   .content-header {
     margin-top: 0 !important; /* 紧贴main-content顶部 */
-    top: 1rem !important; /* sticky时距离浏览器顶部1rem */
-    position: sticky !important; /* 确保sticky定位 */
+    position: static !important; /* 改为static，让标题跟随滚动 */
   }
 
   /* 确保标题文字基线对齐 */
@@ -617,6 +616,25 @@
 
 .mobile-toggle:active {
   transform: translateY(0) scale(0.95);
+}
+
+/* ================================
+   强制覆盖标题栏定位 - 确保不被其他样式覆盖
+   ================================ */
+.content-header,
+.main-content .content-header,
+.content-section .content-header {
+  position: static !important;
+  top: auto !important;
+  transform: none !important;
+}
+
+/* 确保所有屏幕尺寸都应用static定位 */
+@media (min-width: 0px) {
+  .content-header {
+    position: static !important;
+    top: auto !important;
+  }
 }
 
 /* 触摸设备优化 */
