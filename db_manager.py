@@ -577,6 +577,13 @@ class DBManager:
                 self.set_system_setting("db_version", "1.4", "数据库版本号")
                 logger.info("数据库升级到版本1.4完成")
 
+            # 升级到版本1.5 - 添加Telegram消息队列表
+            if current_version < "1.5":
+                logger.info("开始升级数据库到版本1.5...")
+                self.create_telegram_message_queue_table(cursor)
+                self.set_system_setting("db_version", "1.5", "数据库版本号")
+                logger.info("数据库升级到版本1.5完成")
+
             # 迁移遗留数据（在所有版本升级完成后执行）
             self.migrate_legacy_data(cursor)
 
@@ -4442,6 +4449,39 @@ class DBManager:
                 logger.error(f"获取Cookie订单列表失败: {cookie_id} - {e}")
                 return []
 
+    def update_legacy_order_status(self):
+        """更新旧的订单状态到新的状态值"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+
+                # 更新旧状态到新状态
+                status_mapping = [
+                    ('processing', 'shipping'),  # 处理中 -> 发货中
+                    ('processed', 'shipped')     # 已处理 -> 已发货
+                ]
+
+                updated_count = 0
+                for old_status, new_status in status_mapping:
+                    self._execute_sql(cursor, '''
+                    UPDATE orders SET
+                        order_status = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE order_status = ?
+                    ''', (new_status, old_status))
+
+                    updated_count += cursor.rowcount
+                    logger.info(f"更新订单状态: {old_status} -> {new_status}, 影响 {cursor.rowcount} 条记录")
+
+                self.conn.commit()
+                logger.info(f"订单状态更新完成，总共更新了 {updated_count} 条记录")
+                return updated_count
+
+            except Exception as e:
+                logger.error(f"更新订单状态失败: {e}")
+                self.conn.rollback()
+                return 0
+
     def delete_table_record(self, table_name: str, record_id: str):
         """删除指定表的指定记录"""
         with self.lock:
@@ -4537,6 +4577,102 @@ class DBManager:
         except Exception as e:
             logger.error(f"升级keywords表失败: {e}")
             raise
+
+    def create_telegram_message_queue_table(self, cursor):
+        """创建Telegram消息队列表"""
+        try:
+            logger.info("开始创建telegram_message_queue表...")
+
+            # 检查表是否已存在
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='telegram_message_queue'
+            """)
+
+            if cursor.fetchone():
+                logger.info("telegram_message_queue表已存在，跳过创建")
+                return True
+
+            # 创建telegram_message_queue表
+            cursor.execute('''
+            CREATE TABLE telegram_message_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT UNIQUE NOT NULL,
+                cookie_id TEXT NOT NULL,
+                chat_id TEXT NOT NULL,
+                send_user_id TEXT NOT NULL,
+                send_user_name TEXT NOT NULL,
+                send_message TEXT NOT NULL,
+                telegram_chat_id BIGINT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                replied_at TIMESTAMP,
+                reply_content TEXT,
+                reply_method TEXT,
+                context_data TEXT,
+                FOREIGN KEY (cookie_id) REFERENCES cookies(id) ON DELETE CASCADE
+            )
+            ''')
+
+            # 创建索引以提高查询性能
+            cursor.execute('''
+            CREATE INDEX idx_telegram_message_queue_message_id
+            ON telegram_message_queue(message_id)
+            ''')
+
+            cursor.execute('''
+            CREATE INDEX idx_telegram_message_queue_cookie_id
+            ON telegram_message_queue(cookie_id)
+            ''')
+
+            cursor.execute('''
+            CREATE INDEX idx_telegram_message_queue_status
+            ON telegram_message_queue(status)
+            ''')
+
+            cursor.execute('''
+            CREATE INDEX idx_telegram_message_queue_telegram_chat_id
+            ON telegram_message_queue(telegram_chat_id)
+            ''')
+
+            logger.info("telegram_message_queue表创建完成")
+
+            # 添加默认的Telegram系统设置
+            self._add_default_telegram_settings(cursor)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"创建telegram_message_queue表失败: {e}")
+            raise
+
+    def _add_default_telegram_settings(self, cursor):
+        """添加默认的Telegram系统设置"""
+        try:
+            # 设置默认的Telegram频率限制（每秒30条消息）
+            cursor.execute('''
+            INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', ('telegram_rate_limit_per_second', '30', 'Telegram Bot API每秒最大消息发送数量'))
+
+            # 设置默认的消息队列清理时间（7天）
+            cursor.execute('''
+            INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', ('telegram_message_queue_cleanup_days', '7', 'Telegram消息队列自动清理天数'))
+
+            # 设置默认的Webhook验证密钥
+            cursor.execute('''
+            INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', ('telegram_webhook_secret', '', 'Telegram Webhook验证密钥'))
+
+            logger.info("默认Telegram系统设置添加完成")
+
+        except Exception as e:
+            logger.error(f"添加默认Telegram系统设置失败: {e}")
+            raise
+
     def get_item_replay(self, item_id: str) -> Optional[Dict[str, Any]]:
         """
         根据商品ID获取商品回复信息，并返回统一格式
@@ -4730,6 +4866,258 @@ class DBManager:
         return {"success_count": success_count, "failed_count": failed_count}
 
 
+
+    # -------------------- Telegram消息队列操作 --------------------
+    def add_telegram_message(self, message_id: str, cookie_id: str, chat_id: str,
+                           send_user_id: str, send_user_name: str, send_message: str,
+                           telegram_chat_id: int, context_data: str = None) -> bool:
+        """添加Telegram消息到队列"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                INSERT INTO telegram_message_queue
+                (message_id, cookie_id, chat_id, send_user_id, send_user_name,
+                 send_message, telegram_chat_id, context_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (message_id, cookie_id, chat_id, send_user_id, send_user_name,
+                      send_message, telegram_chat_id, context_data))
+                self.conn.commit()
+                logger.debug(f"Telegram消息添加成功: {message_id}")
+                return True
+            except Exception as e:
+                logger.error(f"添加Telegram消息失败: {e}")
+                self.conn.rollback()
+                return False
+
+    def get_telegram_message_by_id(self, message_id: str) -> Optional[Dict[str, Any]]:
+        """根据消息ID获取Telegram消息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                SELECT id, message_id, cookie_id, chat_id, send_user_id, send_user_name,
+                       send_message, telegram_chat_id, status, created_at, replied_at,
+                       reply_content, reply_method, context_data
+                FROM telegram_message_queue WHERE message_id = ?
+                ''', (message_id,))
+
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'id': row[0], 'message_id': row[1], 'cookie_id': row[2],
+                        'chat_id': row[3], 'send_user_id': row[4], 'send_user_name': row[5],
+                        'send_message': row[6], 'telegram_chat_id': row[7], 'status': row[8],
+                        'created_at': row[9], 'replied_at': row[10], 'reply_content': row[11],
+                        'reply_method': row[12], 'context_data': row[13]
+                    }
+                return None
+            except Exception as e:
+                logger.error(f"获取Telegram消息失败: {e}")
+                return None
+
+    def update_telegram_message_status(self, message_id: str, status: str,
+                                     reply_content: str = None, reply_method: str = None) -> bool:
+        """更新Telegram消息状态"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                UPDATE telegram_message_queue
+                SET status = ?, replied_at = CURRENT_TIMESTAMP, reply_content = ?, reply_method = ?
+                WHERE message_id = ?
+                ''', (status, reply_content, reply_method, message_id))
+                self.conn.commit()
+                logger.debug(f"Telegram消息状态更新成功: {message_id} -> {status}")
+                return True
+            except Exception as e:
+                logger.error(f"更新Telegram消息状态失败: {e}")
+                self.conn.rollback()
+                return False
+
+    def get_telegram_messages_by_chat(self, telegram_chat_id: int, status: str = None,
+                                    limit: int = 50) -> List[Dict[str, Any]]:
+        """获取指定Telegram聊天的消息列表"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                if status:
+                    cursor.execute('''
+                    SELECT id, message_id, cookie_id, chat_id, send_user_id, send_user_name,
+                           send_message, telegram_chat_id, status, created_at, replied_at,
+                           reply_content, reply_method, context_data
+                    FROM telegram_message_queue
+                    WHERE telegram_chat_id = ? AND status = ?
+                    ORDER BY created_at DESC LIMIT ?
+                    ''', (telegram_chat_id, status, limit))
+                else:
+                    cursor.execute('''
+                    SELECT id, message_id, cookie_id, chat_id, send_user_id, send_user_name,
+                           send_message, telegram_chat_id, status, created_at, replied_at,
+                           reply_content, reply_method, context_data
+                    FROM telegram_message_queue
+                    WHERE telegram_chat_id = ?
+                    ORDER BY created_at DESC LIMIT ?
+                    ''', (telegram_chat_id, limit))
+
+                messages = []
+                for row in cursor.fetchall():
+                    messages.append({
+                        'id': row[0], 'message_id': row[1], 'cookie_id': row[2],
+                        'chat_id': row[3], 'send_user_id': row[4], 'send_user_name': row[5],
+                        'send_message': row[6], 'telegram_chat_id': row[7], 'status': row[8],
+                        'created_at': row[9], 'replied_at': row[10], 'reply_content': row[11],
+                        'reply_method': row[12], 'context_data': row[13]
+                    })
+                return messages
+            except Exception as e:
+                logger.error(f"获取Telegram消息列表失败: {e}")
+                return []
+
+    def cleanup_old_telegram_messages(self, days: int = 7) -> int:
+        """清理指定天数前的Telegram消息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                DELETE FROM telegram_message_queue
+                WHERE created_at < datetime('now', '-{} days')
+                '''.format(days))
+                deleted_count = cursor.rowcount
+                self.conn.commit()
+                logger.info(f"清理了 {deleted_count} 条过期Telegram消息")
+                return deleted_count
+            except Exception as e:
+                logger.error(f"清理过期Telegram消息失败: {e}")
+                self.conn.rollback()
+                return 0
+
+    def get_telegram_message_stats(self, telegram_chat_id: int = None,
+                                 days: int = 7) -> Dict[str, Any]:
+        """获取Telegram消息统计信息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+
+                # 构建查询条件
+                where_clause = "WHERE created_at >= datetime('now', '-{} days')".format(days)
+                if telegram_chat_id:
+                    where_clause += f" AND telegram_chat_id = {telegram_chat_id}"
+
+                # 获取总体统计
+                cursor.execute(f'''
+                SELECT
+                    COUNT(*) as total_messages,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+                    COUNT(CASE WHEN status = 'replied' THEN 1 END) as replied_count,
+                    COUNT(CASE WHEN status = 'ignored' THEN 1 END) as ignored_count,
+                    COUNT(CASE WHEN reply_method = 'ai' THEN 1 END) as ai_replies,
+                    COUNT(CASE WHEN reply_method = 'manual' THEN 1 END) as manual_replies,
+                    COUNT(CASE WHEN reply_method = 'template' THEN 1 END) as template_replies
+                FROM telegram_message_queue {where_clause}
+                ''')
+
+                row = cursor.fetchone()
+                stats = {
+                    'total_messages': row[0],
+                    'pending_count': row[1],
+                    'replied_count': row[2],
+                    'ignored_count': row[3],
+                    'ai_replies': row[4],
+                    'manual_replies': row[5],
+                    'template_replies': row[6],
+                    'reply_rate': round((row[2] / row[0] * 100) if row[0] > 0 else 0, 2)
+                }
+
+                # 获取平均响应时间（已回复的消息）
+                cursor.execute(f'''
+                SELECT AVG(
+                    (julianday(replied_at) - julianday(created_at)) * 24 * 60
+                ) as avg_response_minutes
+                FROM telegram_message_queue
+                {where_clause} AND status = 'replied' AND replied_at IS NOT NULL
+                ''')
+
+                avg_response = cursor.fetchone()[0]
+                stats['avg_response_minutes'] = round(avg_response, 2) if avg_response else 0
+
+                # 获取每日消息数量趋势
+                cursor.execute(f'''
+                SELECT
+                    date(created_at) as message_date,
+                    COUNT(*) as daily_count
+                FROM telegram_message_queue {where_clause}
+                GROUP BY date(created_at)
+                ORDER BY message_date DESC
+                LIMIT 7
+                ''')
+
+                daily_stats = []
+                for row in cursor.fetchall():
+                    daily_stats.append({
+                        'date': row[0],
+                        'count': row[1]
+                    })
+
+                stats['daily_trends'] = daily_stats
+
+                return stats
+
+            except Exception as e:
+                logger.error(f"获取Telegram消息统计失败: {e}")
+                return {
+                    'total_messages': 0,
+                    'pending_count': 0,
+                    'replied_count': 0,
+                    'ignored_count': 0,
+                    'ai_replies': 0,
+                    'manual_replies': 0,
+                    'template_replies': 0,
+                    'reply_rate': 0,
+                    'avg_response_minutes': 0,
+                    'daily_trends': []
+                }
+
+    def get_telegram_top_users(self, telegram_chat_id: int = None,
+                             days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取Telegram消息最活跃用户"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+
+                where_clause = "WHERE created_at >= datetime('now', '-{} days')".format(days)
+                if telegram_chat_id:
+                    where_clause += f" AND telegram_chat_id = {telegram_chat_id}"
+
+                cursor.execute(f'''
+                SELECT
+                    send_user_name,
+                    send_user_id,
+                    COUNT(*) as message_count,
+                    COUNT(CASE WHEN status = 'replied' THEN 1 END) as replied_count,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count
+                FROM telegram_message_queue {where_clause}
+                GROUP BY send_user_id, send_user_name
+                ORDER BY message_count DESC
+                LIMIT ?
+                ''', (limit,))
+
+                top_users = []
+                for row in cursor.fetchall():
+                    top_users.append({
+                        'user_name': row[0],
+                        'user_id': row[1],
+                        'message_count': row[2],
+                        'replied_count': row[3],
+                        'pending_count': row[4],
+                        'reply_rate': round((row[3] / row[2] * 100) if row[2] > 0 else 0, 2)
+                    })
+
+                return top_users
+
+            except Exception as e:
+                logger.error(f"获取Telegram活跃用户失败: {e}")
+                return []
 
 # 全局单例
 db_manager = DBManager()

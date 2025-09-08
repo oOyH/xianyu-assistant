@@ -366,6 +366,414 @@ class XianyuLive:
 
         return False
 
+    def _extract_user_nickname(self, message_10: dict, reminder_title: str) -> str:
+        """增强的用户昵称提取方法
+
+        Args:
+            message_10: 消息详情字典
+            reminder_title: 提醒标题
+
+        Returns:
+            str: 提取到的用户昵称，如果无法提取则返回空字符串
+        """
+        try:
+            # 扩展的系统消息列表（这些不是真正的买家昵称）
+            system_reminder_messages = [
+                # 基础系统消息
+                '发来一条新消息', '发来一条消息', '交易消息',
+                '快给ta一个评价吧～', '等待你发货', '等待买家付款',
+                '交易关闭', '你已发货', '已发货',
+                # 扩展系统消息
+                '系统消息', '自动消息', '通知消息', '状态更新',
+                '订单消息', '支付消息', '发货消息', '收货消息',
+                '评价消息', '退款消息', '售后消息', '客服消息',
+                '温馨提示', '安全提醒', '操作提醒', '时间提醒',
+                '等待付款', '等待发货', '等待收货', '等待评价',
+                '交易完成', '交易取消', '交易异常', '交易超时',
+                # 可能的变体
+                '发来消息', '新消息', '消息通知', '消息提醒',
+                '买家消息', '卖家消息', '用户消息', '客户消息'
+            ]
+
+            # 方法1: 从reminderTitle获取昵称（优先级最高）
+            if reminder_title and reminder_title.strip():
+                title_clean = reminder_title.strip()
+
+                # 检查是否为系统消息
+                is_system_message = False
+                for sys_msg in system_reminder_messages:
+                    if sys_msg in title_clean or title_clean in sys_msg:
+                        is_system_message = True
+                        break
+
+                # 如果不是系统消息且长度合理，使用它作为昵称
+                if not is_system_message and 1 <= len(title_clean) <= 50:
+                    # 进一步验证昵称的有效性
+                    if self._is_valid_nickname(title_clean):
+                        logger.debug(f"📱 从reminderTitle获取昵称: {title_clean}")
+                        return title_clean
+
+            # 方法2: 从多个备用字段获取昵称
+            nickname_fields = [
+                "senderNick", "senderName", "nick", "nickName",
+                "userName", "displayName", "realName", "userNick",
+                "fromNick", "fromName", "chatNick", "chatName"
+            ]
+
+            for field in nickname_fields:
+                nickname = message_10.get(field, "")
+                if nickname and isinstance(nickname, str):
+                    nickname_clean = nickname.strip()
+                    if nickname_clean and self._is_valid_nickname(nickname_clean):
+                        logger.debug(f"📱 从{field}字段获取昵称: {nickname_clean}")
+                        return nickname_clean
+
+            # 方法3: 尝试从嵌套字段中获取昵称
+            nested_paths = [
+                ["sender", "nick"], ["sender", "name"], ["sender", "displayName"],
+                ["user", "nick"], ["user", "name"], ["user", "displayName"],
+                ["from", "nick"], ["from", "name"], ["from", "displayName"]
+            ]
+
+            for path in nested_paths:
+                try:
+                    value = message_10
+                    for key in path:
+                        if isinstance(value, dict) and key in value:
+                            value = value[key]
+                        else:
+                            value = None
+                            break
+
+                    if value and isinstance(value, str):
+                        nickname_clean = value.strip()
+                        if nickname_clean and self._is_valid_nickname(nickname_clean):
+                            logger.debug(f"📱 从嵌套路径{'.'.join(path)}获取昵称: {nickname_clean}")
+                            return nickname_clean
+                except:
+                    continue
+
+            # 方法4: 从消息内容中尝试提取昵称（最后的尝试）
+            content_fields = ["content", "text", "message", "body"]
+            for field in content_fields:
+                content = message_10.get(field, "")
+                if content and isinstance(content, str):
+                    # 尝试从内容中提取可能的昵称
+                    extracted_nick = self._extract_nickname_from_content(content)
+                    if extracted_nick:
+                        logger.debug(f"📱 从{field}内容中提取昵称: {extracted_nick}")
+                        return extracted_nick
+
+            logger.debug("📱 所有昵称提取方法都失败，返回空字符串")
+            return ""
+
+        except Exception as e:
+            logger.error(f"📱 提取用户昵称时发生错误: {self._safe_str(e)}")
+            return ""
+
+    def _is_valid_nickname(self, nickname: str) -> bool:
+        """验证昵称的有效性
+
+        Args:
+            nickname: 待验证的昵称
+
+        Returns:
+            bool: 昵称是否有效
+        """
+        if not nickname or not isinstance(nickname, str):
+            return False
+
+        nickname = nickname.strip()
+
+        # 长度检查
+        if len(nickname) < 1 or len(nickname) > 50:
+            return False
+
+        # 排除明显的系统标识符
+        invalid_patterns = [
+            r'^user\d+$',  # user123
+            r'^用户\d+$',   # 用户123
+            r'^unknown',   # unknown_user
+            r'^system',    # system_message
+            r'^auto',      # auto_reply
+            r'^\d+$',      # 纯数字
+            r'^[a-f0-9]{8,}$',  # 长十六进制字符串（可能是ID）
+        ]
+
+        import re
+        for pattern in invalid_patterns:
+            if re.match(pattern, nickname, re.IGNORECASE):
+                return False
+
+        # 排除包含特殊系统关键词的昵称
+        system_keywords = [
+            '系统', 'system', '自动', 'auto', '机器人', 'bot',
+            '客服', 'service', '管理员', 'admin', '通知', 'notify'
+        ]
+
+        nickname_lower = nickname.lower()
+        for keyword in system_keywords:
+            if keyword in nickname_lower:
+                return False
+
+        return True
+
+    def _extract_nickname_from_content(self, content: str) -> str:
+        """从消息内容中尝试提取昵称
+
+        Args:
+            content: 消息内容
+
+        Returns:
+            str: 提取到的昵称，如果无法提取则返回空字符串
+        """
+        try:
+            import re
+
+            # 尝试匹配常见的昵称模式
+            patterns = [
+                r'来自[：:]?\s*([^，,。.\s]{2,20})',  # 来自：昵称
+                r'用户[：:]?\s*([^，,。.\s]{2,20})',  # 用户：昵称
+                r'买家[：:]?\s*([^，,。.\s]{2,20})',  # 买家：昵称
+                r'@([^，,。.\s]{2,20})',           # @昵称
+            ]
+
+            for pattern in patterns:
+                matches = re.findall(pattern, content)
+                if matches:
+                    nickname = matches[0].strip()
+                    if self._is_valid_nickname(nickname):
+                        return nickname
+
+            return ""
+
+        except Exception as e:
+            logger.debug(f"从内容提取昵称失败: {self._safe_str(e)}")
+            return ""
+
+    async def _get_item_title_for_notification(self, item_id: str) -> str:
+        """增强的商品标题获取方法，用于消息通知
+
+        Args:
+            item_id: 商品ID
+
+        Returns:
+            str: 商品标题，如果无法获取则返回"未知商品"
+        """
+        try:
+            # 如果商品ID无效，直接返回默认值
+            if not item_id or item_id == '未知' or item_id.startswith('auto_'):
+                return "未知商品"
+
+            from db_manager import db_manager
+
+            # 方法1: 从数据库获取商品信息
+            item_info = db_manager.get_item_info(self.cookie_id, item_id)
+            if item_info and item_info.get('item_title'):
+                title = item_info['item_title'].strip()
+                if title and title != '未知商品':
+                    # 智能截断商品标题（保留前30个字符）
+                    if len(title) > 30:
+                        title = title[:30] + "..."
+                    logger.debug(f"📦 从数据库获取商品标题: {title}")
+                    return title
+
+            # 方法2: 如果数据库中没有或标题为空，尝试实时获取
+            try:
+                item_detail = await self.get_item_info(item_id)
+                if item_detail and not item_detail.get('error'):
+                    # 解析API返回的商品信息
+                    title = self._extract_title_from_api_response(item_detail)
+                    if title:
+                        # 保存到数据库以供下次使用
+                        await self._save_item_title_to_db(item_id, title)
+
+                        # 智能截断商品标题
+                        if len(title) > 30:
+                            title = title[:30] + "..."
+                        logger.info(f"📦 从API获取商品标题: {title}")
+                        return title
+            except Exception as api_e:
+                logger.debug(f"📦 API获取商品信息失败: {self._safe_str(api_e)}")
+
+            # 方法3: 如果所有方法都失败，返回格式化的商品ID
+            if item_id and len(item_id) >= 10 and item_id.isdigit():
+                formatted_id = f"商品{item_id[-6:]}"  # 显示后6位数字
+                logger.debug(f"📦 使用格式化商品ID: {formatted_id}")
+                return formatted_id
+
+            logger.warning(f"📦 无法获取商品标题，使用默认值: {item_id}")
+            return "未知商品"
+
+        except Exception as e:
+            logger.error(f"📦 获取商品标题时发生错误: {self._safe_str(e)}")
+            return "未知商品"
+
+    def _extract_title_from_api_response(self, api_response: dict) -> str:
+        """从API响应中提取商品标题
+
+        Args:
+            api_response: API响应数据
+
+        Returns:
+            str: 提取到的商品标题，如果无法提取则返回空字符串
+        """
+        try:
+            # 尝试多种可能的标题字段路径
+            title_paths = [
+                ['data', 'item', 'title'],
+                ['data', 'title'],
+                ['item', 'title'],
+                ['title'],
+                ['data', 'item', 'name'],
+                ['data', 'name'],
+                ['item', 'name'],
+                ['name'],
+                ['data', 'item', 'itemTitle'],
+                ['data', 'itemTitle'],
+                ['itemTitle']
+            ]
+
+            for path in title_paths:
+                try:
+                    value = api_response
+                    for key in path:
+                        if isinstance(value, dict) and key in value:
+                            value = value[key]
+                        else:
+                            value = None
+                            break
+
+                    if value and isinstance(value, str):
+                        title = value.strip()
+                        if title and len(title) > 0:
+                            logger.debug(f"📦 从API路径{'.'.join(path)}提取标题: {title[:50]}...")
+                            return title
+                except:
+                    continue
+
+            return ""
+
+        except Exception as e:
+            logger.debug(f"📦 从API响应提取标题失败: {self._safe_str(e)}")
+            return ""
+
+    async def _save_item_title_to_db(self, item_id: str, title: str) -> bool:
+        """保存商品标题到数据库
+
+        Args:
+            item_id: 商品ID
+            title: 商品标题
+
+        Returns:
+            bool: 保存是否成功
+        """
+        try:
+            from db_manager import db_manager
+
+            # 使用save_item_basic_info方法保存标题
+            success = db_manager.save_item_basic_info(
+                cookie_id=self.cookie_id,
+                item_id=item_id,
+                item_title=title
+            )
+
+            if success:
+                logger.debug(f"📦 商品标题已保存到数据库: {item_id} -> {title[:30]}...")
+            else:
+                logger.warning(f"📦 保存商品标题到数据库失败: {item_id}")
+
+            return success
+
+        except Exception as e:
+            logger.error(f"📦 保存商品标题到数据库时发生错误: {self._safe_str(e)}")
+            return False
+
+
+
+    def _infer_title_from_item_id(self, item_id: str) -> str:
+        """从商品ID推断可能的商品标题
+
+        Args:
+            item_id: 商品ID
+
+        Returns:
+            str: 推断的商品标题，如果无法推断则返回空字符串
+        """
+        try:
+            # 基于商品ID的某些特征进行简单推断
+            # 这是一个备用方案，提供比"未知商品"更有用的信息
+
+            if not item_id or len(item_id) < 10:
+                return ""
+
+            # 根据ID的某些模式进行推断（这是启发式的，不一定准确）
+            id_suffix = item_id[-4:]  # 取后4位
+
+            # 简单的分类推断（基于经验，可能不准确）
+            category_hints = {
+                '0001': '数码产品', '0002': '服装配饰', '0003': '家居用品',
+                '0004': '图书文具', '0005': '运动户外', '0006': '美妆护肤',
+                '0007': '母婴用品', '0008': '食品饮料', '0009': '汽车用品'
+            }
+
+            # 检查是否有匹配的分类提示
+            for suffix, category in category_hints.items():
+                if id_suffix.endswith(suffix[-2:]):
+                    return f"{category}商品"
+
+            # 如果没有特殊模式，返回格式化的ID
+            return f"商品{item_id[-6:]}"
+
+        except Exception as e:
+            logger.debug(f"📦 从商品ID推断标题失败: {self._safe_str(e)}")
+            return ""
+
+    async def _update_order_status_to_completed(self, item_id: str, buyer_id: str):
+        """更新订单状态为交易完成
+
+        Args:
+            item_id: 商品ID
+            buyer_id: 买家ID
+        """
+        try:
+            from db_manager import db_manager
+
+            # 根据商品ID和买家ID查找对应的订单
+            # 由于可能有多个订单，我们需要找到最近的未完成订单
+            orders = db_manager.get_orders_by_cookie(self.cookie_id, limit=100)
+
+            target_order = None
+            for order in orders:
+                if (order.get('item_id') == item_id and
+                    order.get('buyer_id') == buyer_id and
+                    order.get('order_status') in ['shipping', 'shipped', 'processing', 'processed']):
+                    target_order = order
+                    break
+
+            if target_order:
+                order_id = target_order['order_id']
+                # 更新订单状态为已完成
+                success = db_manager.insert_or_update_order(
+                    order_id=order_id,
+                    order_status='completed',  # 交易已完成状态
+                    cookie_id=self.cookie_id
+                )
+
+                if success:
+                    logger.info(f"🎉 订单状态已更新为交易完成: {order_id} (商品: {item_id}, 买家: {buyer_id})")
+                else:
+                    logger.warning(f"❌ 更新订单状态失败: {order_id}")
+            else:
+                logger.warning(f"⚠️ 未找到匹配的订单进行状态更新 (商品: {item_id}, 买家: {buyer_id})")
+
+        except Exception as e:
+            logger.error(f"❌ 更新订单状态为交易完成时发生错误: {self._safe_str(e)}")
+
+
+
+
+
     def _extract_order_id(self, message: dict) -> str:
         """从消息中提取订单ID"""
         try:
@@ -878,22 +1286,31 @@ class XianyuLive:
                 logger.debug(f"跳过保存商品信息：缺少商品标题和详情 - {item_id}")
                 return
 
-            # 如果有商品标题但没有详情，也跳过（根据需求，需要同时有标题和详情）
-            if not item_title or not item_detail:
-                logger.debug(f"跳过保存商品信息：商品标题或详情不完整 - {item_id}")
-                return
-
             from db_manager import db_manager
 
-            # 直接使用传入的详情内容
-            item_data = item_detail
+            # 🔧 修复核心问题：分别保存标题和详情，不要求同时存在
+            success = False
 
-            # 保存到数据库
-            success = db_manager.save_item_info(self.cookie_id, item_id, item_data)
-            if success:
-                logger.info(f"商品信息已保存到数据库: {item_id}")
-            else:
-                logger.warning(f"保存商品信息到数据库失败: {item_id}")
+            # 如果有商品标题，保存标题
+            if item_title and item_title.strip():
+                success = db_manager.save_item_basic_info(
+                    cookie_id=self.cookie_id,
+                    item_id=item_id,
+                    item_title=item_title.strip()
+                )
+                if success:
+                    logger.info(f"商品标题已保存到数据库: {item_id} -> {item_title[:30]}...")
+                else:
+                    logger.warning(f"保存商品标题到数据库失败: {item_id}")
+
+            # 如果有商品详情，保存详情
+            if item_detail and item_detail.strip():
+                detail_success = db_manager.save_item_info(self.cookie_id, item_id, item_detail)
+                if detail_success:
+                    logger.info(f"商品详情已保存到数据库: {item_id}")
+                    success = True
+                else:
+                    logger.warning(f"保存商品详情到数据库失败: {item_id}")
 
         except Exception as e:
             logger.error(f"保存商品信息到数据库异常: {self._safe_str(e)}")
@@ -1846,19 +2263,8 @@ class XianyuLive:
 
             logger.info(f"📱 找到 {len(notifications)} 个通知渠道配置")
 
-            # 获取商品信息用于通知显示
-            item_title = "未知商品"
-            if item_id and item_id != '未知':
-                try:
-                    from db_manager import db_manager
-                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
-                    if item_info and item_info.get('item_title'):
-                        item_title = item_info['item_title'].strip()
-                        # 智能截断商品标题（保留前30个字符）
-                        if len(item_title) > 30:
-                            item_title = item_title[:30] + "..."
-                except Exception as e:
-                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+            # 获取商品信息用于通知显示 - 使用增强的获取逻辑
+            item_title = await self._get_item_title_for_notification(item_id)
 
             # 构建增强的通知消息
             notification_msg = f"🚨 接收消息通知\n\n" \
@@ -1916,7 +2322,23 @@ class XianyuLive:
                             await self._send_wechat_notification(config_data, notification_msg)
                         case 'telegram':
                             logger.info(f"📱 开始发送Telegram通知...")
-                            await self._send_telegram_notification(config_data, notification_msg)
+                            # 构建消息上下文用于后台映射（不影响消息显示）
+                            message_context = {
+                                'send_user_name': send_user_name,
+                                'send_user_id': send_user_id,
+                                'send_message': send_message,
+                                'item_id': item_id,
+                                'item_title': item_title,
+                                'chat_id': chat_id,
+                                'telegram_chat_id': int(config_data.get('chat_id', 0))
+                            }
+                            # 发送原有格式的消息，但在后台创建映射
+                            await self._send_telegram_notification(
+                                config_data,
+                                notification_msg,
+                                enable_interaction=False,  # 保持原有格式
+                                message_context=message_context  # 用于后台映射
+                            )
                         case _:
                             logger.warning(f"📱 不支持的通知渠道类型: {channel_type}")
 
@@ -1942,19 +2364,8 @@ class XianyuLive:
                 logger.debug("未配置消息通知，跳过交易成功通知")
                 return
 
-            # 获取商品信息用于通知显示
-            item_title = "未知商品"
-            if item_id:
-                try:
-                    from db_manager import db_manager
-                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
-                    if item_info and item_info.get('item_title'):
-                        item_title = item_info['item_title'].strip()
-                        # 智能截断商品标题（保留前30个字符）
-                        if len(item_title) > 30:
-                            item_title = item_title[:30] + "..."
-                except Exception as e:
-                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+            # 获取商品信息用于通知显示 - 使用增强的获取逻辑
+            item_title = await self._get_item_title_for_notification(item_id)
 
             # 构造交易成功祝贺通知消息
             notification_message = f"🎉 交易成功通知\n\n" \
@@ -2377,11 +2788,11 @@ class XianyuLive:
         except Exception as e:
             logger.error(f"发送微信通知异常: {self._safe_str(e)}")
 
-    async def _send_telegram_notification(self, config_data: dict, message: str):
-        """发送Telegram通知"""
+    async def _send_telegram_notification(self, config_data: dict, message: str,
+                                        enable_interaction: bool = False,
+                                        message_context: dict = None):
+        """发送Telegram通知（支持交互式消息映射）"""
         try:
-            import aiohttp
-
             # 解析配置
             bot_token = config_data.get('bot_token', '')
             chat_id = config_data.get('chat_id', '')
@@ -2390,24 +2801,188 @@ class XianyuLive:
                 logger.warning("Telegram通知配置不完整")
                 return
 
-            # 构建API URL
-            api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            # 如果有消息上下文，创建后台映射（无论是否启用交互功能）
+            if message_context:
+                await self._create_telegram_message_mapping(message_context)
 
-            data = {
-                'chat_id': chat_id,
-                'text': message,
-                'parse_mode': 'HTML'
-            }
+            # 如果启用交互功能且有消息上下文，生成结构化消息
+            if enable_interaction and message_context:
+                formatted_message = await self._format_interactive_telegram_message(message_context)
+                if formatted_message:
+                    message = formatted_message
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(api_url, json=data, timeout=10) as response:
-                    if response.status == 200:
+            # 使用TelegramBotService发送消息
+            try:
+                from telegram_bot_service import TelegramBotService
+
+                async with TelegramBotService(bot_token) as bot_service:
+                    success = await bot_service.send_message(
+                        chat_id=int(chat_id),
+                        text=message,
+                        parse_mode=None  # 使用纯文本，避免Markdown解析错误
+                    )
+
+                    if success:
                         logger.info(f"Telegram通知发送成功")
                     else:
-                        logger.warning(f"Telegram通知发送失败: {response.status}")
+                        logger.warning(f"Telegram通知发送失败")
+
+            except ImportError:
+                # 如果TelegramBotService不可用，回退到原始方法
+                logger.warning("TelegramBotService不可用，使用原始发送方法")
+                await self._send_telegram_notification_fallback(config_data, message)
 
         except Exception as e:
             logger.error(f"发送Telegram通知异常: {self._safe_str(e)}")
+
+    async def _send_telegram_notification_fallback(self, config_data: dict, message: str):
+        """Telegram通知发送的回退方法"""
+        try:
+            import aiohttp
+
+            bot_token = config_data.get('bot_token', '')
+            chat_id = config_data.get('chat_id', '')
+
+            api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            data = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(api_url, json=data, timeout=timeout) as response:
+                    if response.status == 200:
+                        logger.info(f"Telegram通知发送成功（回退方法）")
+                    else:
+                        logger.warning(f"Telegram通知发送失败（回退方法）: {response.status}")
+
+        except Exception as e:
+            logger.error(f"Telegram通知回退方法异常: {self._safe_str(e)}")
+
+    def _generate_telegram_message_id(self, cookie_id: str) -> str:
+        """生成唯一的Telegram消息编号"""
+        try:
+            import time
+            timestamp = int(time.time())
+            account_code = cookie_id[:4].upper()
+            time_code = str(timestamp)[-6:]
+
+            # 使用时间戳的毫秒部分作为序号，确保唯一性
+            import random
+            sequence = random.randint(1, 999)
+
+            message_id = f"{account_code}_{time_code}_{sequence:03d}"
+            logger.debug(f"生成Telegram消息ID: {message_id}")
+            return message_id
+        except Exception as e:
+            logger.error(f"生成Telegram消息ID失败: {self._safe_str(e)}")
+            # 返回一个基础的ID作为后备
+            return f"{cookie_id[:4].upper()}_{int(time.time())}"
+
+    async def _format_interactive_telegram_message(self, message_context: dict) -> str:
+        """格式化交互式Telegram消息"""
+        try:
+            from db_manager import db_manager
+            import json
+
+            # 生成消息ID
+            message_id = self._generate_telegram_message_id(self.cookie_id)
+
+            # 提取消息上下文信息
+            send_user_name = message_context.get('send_user_name', '未知用户')
+            send_user_id = message_context.get('send_user_id', '未知ID')
+            send_message = message_context.get('send_message', '无消息内容')
+            item_id = message_context.get('item_id', '未知')
+            item_title = message_context.get('item_title', '未知商品')
+            chat_id = message_context.get('chat_id', '未知')
+            telegram_chat_id = message_context.get('telegram_chat_id')
+
+            # 存储消息映射到数据库
+            context_data = {
+                'item_title': item_title,
+                'msg_time': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+            success = db_manager.add_telegram_message(
+                message_id=message_id,
+                cookie_id=self.cookie_id,
+                chat_id=chat_id,
+                send_user_id=send_user_id,
+                send_user_name=send_user_name,
+                send_message=send_message,
+                telegram_chat_id=telegram_chat_id,
+                context_data=json.dumps(context_data)
+            )
+
+            if not success:
+                logger.error(f"存储Telegram消息映射失败: {message_id}")
+                return None
+
+            # 格式化结构化消息（简洁格式）
+            formatted_message = f"""🚨 接收消息通知
+
+账号: {self.cookie_id}
+买家: {send_user_name}（{send_user_id}）
+商品: {item_title} (ID: {item_id})
+聊天ID: {chat_id}
+消息内容: {send_message}
+时间: {time.strftime('%Y-%m-%d %H:%M:%S')}
+
+消息编号: {message_id}"""
+
+            logger.info(f"生成交互式Telegram消息: {message_id}")
+            return formatted_message.strip()
+
+        except Exception as e:
+            logger.error(f"格式化交互式Telegram消息失败: {self._safe_str(e)}")
+            return None
+
+    async def _create_telegram_message_mapping(self, message_context: dict):
+        """创建Telegram消息映射（后台静默处理）"""
+        try:
+            from db_manager import db_manager
+            import json
+            import time
+
+            # 生成消息ID
+            message_id = self._generate_telegram_message_id(self.cookie_id)
+
+            # 提取消息上下文信息
+            send_user_name = message_context.get('send_user_name', '未知用户')
+            send_user_id = message_context.get('send_user_id', '未知ID')
+            send_message = message_context.get('send_message', '无消息内容')
+            item_id = message_context.get('item_id', '未知')
+            item_title = message_context.get('item_title', '未知商品')
+            chat_id = message_context.get('chat_id', '未知')
+            telegram_chat_id = message_context.get('telegram_chat_id')
+
+            # 存储消息映射到数据库
+            context_data = {
+                'item_title': item_title,
+                'msg_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'original_message': f"🚨 接收消息通知\n\n账号: {self.cookie_id}\n买家: {send_user_name}（{send_user_id}）\n商品: {item_title} (ID: {item_id})\n聊天ID: {chat_id}\n消息内容: {send_message}\n时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+            }
+
+            success = db_manager.add_telegram_message(
+                message_id=message_id,
+                cookie_id=self.cookie_id,
+                chat_id=chat_id,
+                send_user_id=send_user_id,
+                send_user_name=send_user_name,
+                send_message=send_message,
+                telegram_chat_id=telegram_chat_id,
+                context_data=json.dumps(context_data)
+            )
+
+            if success:
+                logger.info(f"创建Telegram消息映射成功: {message_id}")
+            else:
+                logger.error(f"创建Telegram消息映射失败: {message_id}")
+
+        except Exception as e:
+            logger.error(f"创建Telegram消息映射异常: {self._safe_str(e)}")
 
     async def send_token_refresh_notification(self, error_message: str, notification_type: str = "token_refresh", chat_id: str = None):
         """发送Token刷新异常通知（带防重复机制）"""
@@ -2613,26 +3188,15 @@ class XianyuLive:
                 logger.debug("未配置消息通知，跳过自动发货通知")
                 return
 
-            # 获取商品信息用于通知显示
-            item_title = "未知商品"
-            if item_id:
-                try:
-                    from db_manager import db_manager
-                    item_info = db_manager.get_item_info(self.cookie_id, item_id)
-                    if item_info and item_info.get('item_title'):
-                        item_title = item_info['item_title'].strip()
-                        # 智能截断商品标题（保留前30个字符）
-                        if len(item_title) > 30:
-                            item_title = item_title[:30] + "..."
-                except Exception as e:
-                    logger.debug(f"获取商品信息失败: {self._safe_str(e)}")
+            # 获取商品信息用于通知显示 - 使用增强的获取逻辑
+            item_title = await self._get_item_title_for_notification(item_id)
 
             # 判断是发货成功还是失败，构造相应的通知消息
             is_success = "发货成功" in error_message
 
             if is_success:
                 # 发货成功的通知
-                notification_message = f"🎉 自动发货成功通知\n\n" \
+                notification_message = f"📦 自动发货成功通知\n\n" \
                                      f"账号: {self.cookie_id}\n" \
                                      f"买家: {send_user_name}（{send_user_id}）\n" \
                                      f"商品: {item_title} (ID: {item_id})\n" \
@@ -2811,7 +3375,7 @@ class XianyuLive:
                                 spec_value=spec_value,
                                 quantity=quantity,
                                 amount=amount,
-                                order_status='processed',  # 已处理状态
+                                order_status='shipped',  # 已发货状态
                                 cookie_id=self.cookie_id
                             )
 
@@ -3071,7 +3635,7 @@ class XianyuLive:
                                 order_id=order_id,
                                 item_id=item_id,
                                 buyer_id=send_user_id,
-                                order_status='processing',  # 处理中状态
+                                order_status='shipping',  # 发货中状态
                                 cookie_id=self.cookie_id
                             )
                             logger.info(f"保存基本订单信息到数据库: {order_id}")
@@ -4756,23 +5320,8 @@ class XianyuLive:
                 reminder_title = message_10.get("reminderTitle", "")
                 message_status = ""  # 消息状态需要从其他地方获取
 
-                # 系统消息列表（这些不是真正的买家昵称）
-                system_reminder_messages = [
-                    '发来一条新消息', '发来一条消息', '交易消息',
-                    '快给ta一个评价吧～', '等待你发货', '等待买家付款',
-                    '交易关闭', '你已发货', '已发货'
-                ]
-
-                # 如果reminderTitle是系统消息，则不使用它作为昵称
-                if reminder_title and reminder_title.strip() not in system_reminder_messages:
-                    send_user_nick = reminder_title.strip()
-                else:
-                    # 尝试从其他字段获取昵称
-                    send_user_nick = message_10.get("senderNick", "") or \
-                                   message_10.get("senderName", "") or \
-                                   message_10.get("nick", "") or \
-                                   message_10.get("nickName", "") or \
-                                   message_10.get("userName", "")
+                # 获取买家昵称 - 使用增强的提取逻辑
+                send_user_nick = self._extract_user_nickname(message_10, reminder_title)
 
                 # 构建买家显示名称：优先使用昵称，否则使用用户ID格式
                 if send_user_nick and send_user_nick.strip():
@@ -4814,6 +5363,9 @@ class XianyuLive:
                     is_transaction_success = True
                     should_send_notification = True  # 交易成功要发送特殊通知
                     logger.debug(f"📱 检测到交易成功消息，将发送祝贺通知")
+
+                    # 🔧 新增：更新订单状态为交易完成
+                    await self._update_order_status_to_completed(item_id, send_user_id)
                 else:
                     # 过滤其他系统状态消息
                     system_status_messages = [
@@ -4866,7 +5418,9 @@ class XianyuLive:
                 logger.info(f'[{msg_time}] 【{self.cookie_id}】系统通知消息不处理')
                 return
             elif send_message == '[买家确认收货，交易成功]':
-                logger.info(f'[{msg_time}] 【{self.cookie_id}】交易完成消息不处理')
+                logger.info(f'[{msg_time}] 【{self.cookie_id}】检测到交易完成消息，更新订单状态')
+                # 🔧 在return之前更新订单状态为交易完成
+                await self._update_order_status_to_completed(item_id, send_user_id)
                 return
             elif send_message == '快给ta一个评价吧~' or send_message == '快给ta一个评价吧～':
                 logger.info(f'[{msg_time}] 【{self.cookie_id}】评价提醒消息不处理')

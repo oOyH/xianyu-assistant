@@ -213,6 +213,9 @@ function showSection(sectionName) {
     case 'message-notifications':  // 【消息通知菜单】
         loadMessageNotifications();
         break;
+    case 'telegram-messages':  // 【Telegram消息队列菜单】
+        initTelegramMessagesPage();
+        break;
     case 'system-settings':    // 【系统设置菜单】
         loadSystemSettings();
         break;
@@ -9415,10 +9418,13 @@ function createOrderRow(order) {
 // 获取订单状态样式类
 function getOrderStatusClass(status) {
     const statusMap = {
-        'processing': 'bg-warning text-dark',
-        'processed': 'bg-info text-white',
+        'shipping': 'bg-warning text-dark',
+        'shipped': 'bg-info text-white',
         'completed': 'bg-success text-white',
-        'unknown': 'bg-secondary text-white'
+        'unknown': 'bg-secondary text-white',
+        // 兼容旧状态
+        'processing': 'bg-warning text-dark',  // 旧的"处理中" -> 发货中样式
+        'processed': 'bg-info text-white'      // 旧的"已处理" -> 已发货样式
     };
     return statusMap[status] || 'bg-secondary text-white';
 }
@@ -9426,10 +9432,13 @@ function getOrderStatusClass(status) {
 // 获取订单状态文本
 function getOrderStatusText(status) {
     const statusMap = {
-        'processing': '处理中',
-        'processed': '已处理',
-        'completed': '已完成',
-        'unknown': '未知'
+        'shipping': '发货中',
+        'shipped': '已发货',
+        'completed': '交易已完成',
+        'unknown': '未知',
+        // 兼容旧状态
+        'processing': '发货中',    // 旧的"处理中" -> 发货中
+        'processed': '已发货'      // 旧的"已处理" -> 已发货
     };
     return statusMap[status] || '未知';
 }
@@ -11481,6 +11490,415 @@ async function showUpdateInfo(newVersion) {
     // 显示模态框
     const modal = new bootstrap.Modal(document.getElementById('updateModal'));
     modal.show();
+}
+
+// ==================== Telegram消息队列管理 ====================
+
+// 加载Telegram消息队列
+async function loadTelegramMessages() {
+    const accountSelect = document.getElementById('telegramAccountSelect');
+    const statusFilter = document.getElementById('telegramStatusFilter');
+    const selectedAccount = accountSelect.value;
+
+    if (!selectedAccount) {
+        document.getElementById('telegramMessagesTableBody').innerHTML = '';
+        document.getElementById('telegramMessagesEmpty').style.display = 'block';
+        updateTelegramStats(0, 0, 0, 0);
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams();
+        if (statusFilter.value) {
+            params.append('status', statusFilter.value);
+        }
+        params.append('limit', '100');
+
+        const response = await fetch(`/telegram/messages/${selectedAccount}?${params}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            displayTelegramMessages(data.messages);
+            calculateTelegramStats(data.messages);
+        } else {
+            showToast('加载Telegram消息失败', 'danger');
+        }
+    } catch (error) {
+        console.error('加载Telegram消息失败:', error);
+        showToast('加载Telegram消息失败: ' + error.message, 'danger');
+    }
+}
+
+// 显示Telegram消息列表
+function displayTelegramMessages(messages) {
+    const tbody = document.getElementById('telegramMessagesTableBody');
+    const emptyDiv = document.getElementById('telegramMessagesEmpty');
+
+    if (!messages || messages.length === 0) {
+        tbody.innerHTML = '';
+        emptyDiv.style.display = 'block';
+        return;
+    }
+
+    emptyDiv.style.display = 'none';
+
+    tbody.innerHTML = messages.map(message => {
+        const statusBadge = getStatusBadge(message.status);
+        const createdAt = new Date(message.created_at).toLocaleString('zh-CN');
+
+        return `
+            <tr>
+                <td>
+                    <code class="text-primary">${message.message_id}</code>
+                </td>
+                <td>
+                    <div>
+                        <strong>${escapeHtml(message.send_user_name)}</strong>
+                        <br>
+                        <small class="text-muted">${message.send_user_id}</small>
+                    </div>
+                </td>
+                <td>
+                    <div class="message-content" title="${escapeHtml(message.send_message)}">
+                        ${escapeHtml(message.send_message.length > 50 ?
+                            message.send_message.substring(0, 50) + '...' :
+                            message.send_message)}
+                    </div>
+                </td>
+                <td>${statusBadge}</td>
+                <td>
+                    <small>${createdAt}</small>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info" onclick="viewTelegramMessage('${message.message_id}')" title="查看详情">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        ${message.status === 'pending' ? `
+                            <button class="btn btn-outline-success" onclick="replyTelegramMessage('${message.message_id}')" title="回复">
+                                <i class="bi bi-reply"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// 获取状态徽章
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-warning">待处理</span>',
+        'replied': '<span class="badge bg-success">已回复</span>',
+        'ignored': '<span class="badge bg-secondary">已忽略</span>'
+    };
+    return badges[status] || `<span class="badge bg-light text-dark">${status}</span>`;
+}
+
+// 计算Telegram消息统计
+function calculateTelegramStats(messages) {
+    const stats = {
+        pending: 0,
+        replied: 0,
+        ignored: 0,
+        total: messages.length
+    };
+
+    messages.forEach(message => {
+        if (stats.hasOwnProperty(message.status)) {
+            stats[message.status]++;
+        }
+    });
+
+    updateTelegramStats(stats.pending, stats.replied, stats.ignored, stats.total);
+}
+
+// 更新Telegram统计显示
+function updateTelegramStats(pending, replied, ignored, total) {
+    document.getElementById('telegramPendingCount').textContent = pending;
+    document.getElementById('telegramRepliedCount').textContent = replied;
+    document.getElementById('telegramIgnoredCount').textContent = ignored;
+    document.getElementById('telegramTotalCount').textContent = total;
+}
+
+// 查看Telegram消息详情
+async function viewTelegramMessage(messageId) {
+    try {
+        // 从当前显示的消息中查找
+        const tableBody = document.getElementById('telegramMessagesTableBody');
+        const rows = tableBody.querySelectorAll('tr');
+
+        let messageData = null;
+        for (let row of rows) {
+            const msgIdElement = row.querySelector('code');
+            if (msgIdElement && msgIdElement.textContent === messageId) {
+                // 从表格行中提取数据
+                const cells = row.querySelectorAll('td');
+                messageData = {
+                    message_id: messageId,
+                    send_user_name: cells[1].querySelector('strong').textContent,
+                    send_user_id: cells[1].querySelector('small').textContent,
+                    send_message: cells[2].getAttribute('title') || cells[2].textContent,
+                    status: cells[3].textContent.trim(),
+                    created_at: cells[4].textContent.trim()
+                };
+                break;
+            }
+        }
+
+        if (!messageData) {
+            showToast('未找到消息详情', 'warning');
+            return;
+        }
+
+        // 显示消息详情模态框
+        const modalHtml = `
+            <div class="modal fade" id="messageDetailModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">消息详情 - ${messageId}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>消息编号:</strong></div>
+                                <div class="col-sm-9"><code>${messageData.message_id}</code></div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>买家姓名:</strong></div>
+                                <div class="col-sm-9">${escapeHtml(messageData.send_user_name)}</div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>买家ID:</strong></div>
+                                <div class="col-sm-9"><code>${messageData.send_user_id}</code></div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>消息状态:</strong></div>
+                                <div class="col-sm-9">${messageData.status}</div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>创建时间:</strong></div>
+                                <div class="col-sm-9">${messageData.created_at}</div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-sm-3"><strong>消息内容:</strong></div>
+                                <div class="col-sm-9">
+                                    <div class="border rounded p-3 bg-light">
+                                        ${escapeHtml(messageData.send_message)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                            ${messageData.status.includes('待处理') ? `
+                                <button type="button" class="btn btn-success" onclick="replyTelegramMessage('${messageId}')">
+                                    <i class="bi bi-reply"></i> 回复消息
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('messageDetailModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // 添加新模态框
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('messageDetailModal'));
+        modal.show();
+
+    } catch (error) {
+        console.error('查看消息详情失败:', error);
+        showToast('查看消息详情失败: ' + error.message, 'danger');
+    }
+}
+
+// 回复Telegram消息
+function replyTelegramMessage(messageId) {
+    // 关闭详情模态框（如果打开的话）
+    const detailModal = document.getElementById('messageDetailModal');
+    if (detailModal) {
+        const modal = bootstrap.Modal.getInstance(detailModal);
+        if (modal) modal.hide();
+    }
+
+    // 显示回复模态框
+    const replyModalHtml = `
+        <div class="modal fade" id="replyMessageModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">回复消息 - ${messageId}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="replyContent" class="form-label">回复内容</label>
+                            <textarea class="form-control" id="replyContent" rows="4"
+                                placeholder="请输入回复内容..."></textarea>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>提示：</strong>您也可以在Telegram中直接使用命令回复：
+                            <br><code>回复 ${messageId} [您的回复内容]</code>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="sendReplyMessage('${messageId}')">
+                            <i class="bi bi-send"></i> 发送回复
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 移除已存在的回复模态框
+    const existingReplyModal = document.getElementById('replyMessageModal');
+    if (existingReplyModal) {
+        existingReplyModal.remove();
+    }
+
+    // 添加新回复模态框
+    document.body.insertAdjacentHTML('beforeend', replyModalHtml);
+
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('replyMessageModal'));
+    modal.show();
+
+    // 聚焦到文本框
+    setTimeout(() => {
+        document.getElementById('replyContent').focus();
+    }, 500);
+}
+
+// 发送回复消息
+async function sendReplyMessage(messageId) {
+    const replyContent = document.getElementById('replyContent').value.trim();
+
+    if (!replyContent) {
+        showToast('请输入回复内容', 'warning');
+        return;
+    }
+
+    try {
+        // 这里可以调用后端API发送回复，或者提示用户使用Telegram命令
+        showToast(`请在Telegram中发送以下命令完成回复：\n回复 ${messageId} ${replyContent}`, 'info');
+
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('replyMessageModal'));
+        modal.hide();
+
+        // 复制命令到剪贴板
+        const command = `回复 ${messageId} ${replyContent}`;
+        if (navigator.clipboard) {
+            try {
+                await navigator.clipboard.writeText(command);
+                showToast('回复命令已复制到剪贴板，请在Telegram中粘贴发送', 'success');
+            } catch (err) {
+                console.log('复制到剪贴板失败:', err);
+            }
+        }
+
+    } catch (error) {
+        console.error('发送回复失败:', error);
+        showToast('发送回复失败: ' + error.message, 'danger');
+    }
+}
+
+// 测试Telegram机器人
+async function testTelegramBot() {
+    const accountSelect = document.getElementById('telegramAccountSelect');
+    const selectedAccount = accountSelect.value;
+
+    if (!selectedAccount) {
+        showToast('请先选择账号', 'warning');
+        return;
+    }
+
+    try {
+        // 这里可以发送一个测试消息到Telegram
+        showToast('测试消息发送功能将在后续版本中实现', 'info');
+    } catch (error) {
+        console.error('测试Telegram机器人失败:', error);
+        showToast('测试失败: ' + error.message, 'danger');
+    }
+}
+
+// 初始化Telegram消息页面
+function initTelegramMessagesPage() {
+    // 加载账号列表
+    loadAccountsForTelegram();
+}
+
+// 为Telegram页面加载账号列表
+async function loadAccountsForTelegram() {
+    try {
+        console.log('开始加载Telegram账号列表...');
+
+        // 使用全局变量authToken，与其他页面保持一致
+        console.log('AuthToken存在:', !!authToken);
+
+        const response = await fetch('/cookies/details', {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        console.log('API响应状态:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API响应错误:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('获取到的账号数据:', data);
+
+        const accountSelect = document.getElementById('telegramAccountSelect');
+        console.log('下拉框元素:', accountSelect);
+
+        accountSelect.innerHTML = '<option value="">请选择账号</option>';
+
+        if (data && data.length > 0) {
+            console.log(`找到 ${data.length} 个账号`);
+            data.forEach((account, index) => {
+                console.log(`处理账号 ${index + 1}:`, account);
+                const option = document.createElement('option');
+                option.value = account.id;
+                option.textContent = `${account.id}${account.remark ? ' (' + account.remark + ')' : ''}`;
+                accountSelect.appendChild(option);
+            });
+            console.log('账号选项添加完成');
+        } else {
+            console.log('没有找到账号数据');
+            showToast('没有找到可用账号', 'warning');
+        }
+    } catch (error) {
+        console.error('加载账号列表失败:', error);
+        showToast('加载账号列表失败: ' + error.message, 'danger');
+    }
 }
 
 

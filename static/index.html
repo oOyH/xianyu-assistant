@@ -90,6 +90,12 @@
         </a>
       </div>
       <div class="nav-item">
+        <a href="#" class="nav-link" onclick="showSection('telegram-messages')">
+          <i class="bi bi-telegram"></i>
+          Telegram
+        </a>
+      </div>
+      <div class="nav-item">
         <a href="#" class="nav-link" onclick="showSection('item-search')">
           <i class="bi bi-search"></i>
           商品搜索
@@ -656,9 +662,9 @@
             <label class="form-label">订单状态</label>
             <select class="form-select" id="orderStatusFilter" onchange="filterOrders()">
               <option value="">所有状态</option>
-              <option value="processing">处理中</option>
-              <option value="processed">已处理</option>
-              <option value="completed">已完成</option>
+              <option value="shipping">发货中</option>
+              <option value="shipped">已发货</option>
+              <option value="completed">交易已完成</option>
               <option value="unknown">未知</option>
             </select>
           </div>
@@ -1268,6 +1274,118 @@
                   <!-- 动态生成 -->
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telegram消息队列内容 -->
+    <div id="telegram-messages-section" class="content-section">
+      <div class="content-header">
+        <h2 class="mb-0">
+          <i class="bi bi-telegram me-2"></i>
+          Telegram消息队列
+        </h2>
+        <p class="text-muted mb-0">查看和管理Telegram机器人消息队列状态</p>
+      </div>
+      <div class="content-body">
+        <!-- 账号选择 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <span><i class="bi bi-person-circle me-2"></i>选择账号</span>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <label for="telegramAccountSelect" class="form-label">账号ID</label>
+                <select class="form-select" id="telegramAccountSelect" onchange="loadTelegramMessages()">
+                  <option value="">请选择账号</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="telegramStatusFilter" class="form-label">消息状态</label>
+                <select class="form-select" id="telegramStatusFilter" onchange="loadTelegramMessages()">
+                  <option value="">全部状态</option>
+                  <option value="pending">待处理</option>
+                  <option value="replied">已回复</option>
+                  <option value="ignored">已忽略</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 消息统计 -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h5 class="card-title text-warning" id="telegramPendingCount">0</h5>
+                <p class="card-text">待处理</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h5 class="card-title text-success" id="telegramRepliedCount">0</h5>
+                <p class="card-text">已回复</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h5 class="card-title text-secondary" id="telegramIgnoredCount">0</h5>
+                <p class="card-text">已忽略</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h5 class="card-title text-primary" id="telegramTotalCount">0</h5>
+                <p class="card-text">总计</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 消息列表 -->
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-ul me-2"></i>消息列表</span>
+            <div>
+              <button class="btn btn-sm btn-outline-primary me-2" onclick="loadTelegramMessages()">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+              </button>
+              <button class="btn btn-sm btn-outline-success" onclick="testTelegramBot()">
+                <i class="bi bi-send me-1"></i>测试消息
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover" id="telegramMessagesTable">
+                <thead>
+                  <tr>
+                    <th style="width: 15%">消息ID</th>
+                    <th style="width: 15%">买家</th>
+                    <th style="width: 30%">消息内容</th>
+                    <th style="width: 10%">状态</th>
+                    <th style="width: 15%">创建时间</th>
+                    <th style="width: 15%">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="telegramMessagesTableBody">
+                  <!-- 动态生成 -->
+                </tbody>
+              </table>
+            </div>
+            <div id="telegramMessagesEmpty" class="text-center py-4" style="display: none;">
+              <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+              <p class="text-muted mt-2">暂无消息记录</p>
             </div>
           </div>
         </div>

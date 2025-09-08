@@ -322,27 +322,40 @@ logger.info("Web服务器启动，文件日志收集器已初始化")
 async def log_requests(request, call_next):
     start_time = time.time()
 
-    # 获取用户信息
-    user_info = "未登录"
-    try:
-        # 从请求头中获取Authorization
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            if token in SESSION_TOKENS:
-                token_data = SESSION_TOKENS[token]
-                # 检查token是否过期
-                if time.time() - token_data['timestamp'] <= TOKEN_EXPIRE_TIME:
-                    user_info = f"【{token_data['username']}#{token_data['user_id']}】"
-    except Exception:
-        pass
+    # 判断是否为静态资源请求
+    is_static_resource = request.url.path.startswith('/static/')
 
-    logger.info(f"🌐 {user_info} API请求: {request.method} {request.url.path}")
+    # 获取用户信息
+    if is_static_resource:
+        user_info = "静态资源"
+    else:
+        user_info = "未登录"
+        try:
+            # 从请求头中获取Authorization
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                if token in SESSION_TOKENS:
+                    token_data = SESSION_TOKENS[token]
+                    # 检查token是否过期
+                    if time.time() - token_data['timestamp'] <= TOKEN_EXPIRE_TIME:
+                        user_info = f"【{token_data['username']}#{token_data['user_id']}】"
+        except Exception:
+            pass
+
+    # 根据请求类型选择不同的日志图标
+    if is_static_resource:
+        logger.info(f"📁 {user_info} 请求: {request.method} {request.url.path}")
+    else:
+        logger.info(f"🌐 {user_info} API请求: {request.method} {request.url.path}")
 
     response = await call_next(request)
 
     process_time = time.time() - start_time
-    logger.info(f"✅ {user_info} API响应: {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
+    if is_static_resource:
+        logger.info(f"📁 {user_info} 响应: {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
+    else:
+        logger.info(f"✅ {user_info} API响应: {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
 
     return response
 
@@ -935,6 +948,43 @@ class SendMessageRequest(BaseModel):
 
 
 class SendMessageResponse(BaseModel):
+    success: bool
+    message: str
+
+
+# ==================== Telegram相关数据模型 ====================
+
+class TelegramMessage(BaseModel):
+    message_id: int
+    from_user: Optional[Dict[str, Any]] = None
+    chat: Dict[str, Any]
+    date: int
+    text: Optional[str] = None
+
+class TelegramUpdate(BaseModel):
+    update_id: int
+    message: Optional[TelegramMessage] = None
+
+class TelegramWebhookRequest(BaseModel):
+    update_id: int
+    message: Optional[Dict[str, Any]] = None
+
+class TelegramWebhookResponse(BaseModel):
+    success: bool
+    message: str
+    processed: bool = False
+
+class TelegramMessageQueueResponse(BaseModel):
+    success: bool
+    messages: List[Dict[str, Any]]
+    total: int
+
+class TelegramConfigRequest(BaseModel):
+    bot_token: str
+    chat_id: str
+    enabled: bool = True
+
+class TelegramConfigResponse(BaseModel):
     success: bool
     message: str
 
@@ -5076,6 +5126,348 @@ def get_user_orders(current_user: Dict[str, Any] = Depends(get_current_user)):
     except Exception as e:
         log_with_user('error', f"查询用户订单失败: {str(e)}", current_user)
         raise HTTPException(status_code=500, detail=f"查询订单失败: {str(e)}")
+
+@app.post('/api/orders/update-legacy-status')
+def update_legacy_order_status(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """更新旧的订单状态到新的状态值"""
+    try:
+        from db_manager import db_manager
+
+        # 只有管理员可以执行此操作
+        if current_user.get('username') != 'admin':
+            raise HTTPException(status_code=403, detail="只有管理员可以执行此操作")
+
+        updated_count = db_manager.update_legacy_order_status()
+        log_with_user('info', f"订单状态更新完成，更新了 {updated_count} 条记录", current_user)
+        return {
+            'success': True,
+            'message': f'订单状态更新完成，更新了 {updated_count} 条记录',
+            'updated_count': updated_count
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_with_user('error', f"更新订单状态失败: {str(e)}", current_user)
+        raise HTTPException(status_code=500, detail=f"更新订单状态失败: {str(e)}")
+
+
+# ==================== Telegram Bot API ====================
+
+# 频率限制器
+telegram_rate_limiter = {}
+
+def check_telegram_rate_limit(chat_id: int) -> bool:
+    """检查Telegram请求频率限制"""
+    current_time = time.time()
+    if chat_id not in telegram_rate_limiter:
+        telegram_rate_limiter[chat_id] = []
+
+    # 清理1分钟前的请求记录
+    telegram_rate_limiter[chat_id] = [
+        req_time for req_time in telegram_rate_limiter[chat_id]
+        if current_time - req_time < 60
+    ]
+
+    # 检查是否超过频率限制（每分钟最多30次请求）
+    if len(telegram_rate_limiter[chat_id]) >= 30:
+        return False
+
+    telegram_rate_limiter[chat_id].append(current_time)
+    return True
+
+def verify_telegram_webhook(request_data: dict) -> bool:
+    """验证Telegram Webhook请求的合法性"""
+    try:
+        # 基本字段验证
+        if 'update_id' not in request_data:
+            return False
+
+        # 检查是否有消息内容
+        if 'message' in request_data:
+            message = request_data['message']
+            if 'chat' not in message or 'from' not in message:
+                return False
+
+        return True
+    except Exception as e:
+        logger.error(f"验证Telegram Webhook请求失败: {e}")
+        return False
+
+@app.post("/telegram/webhook", response_model=TelegramWebhookResponse)
+async def telegram_webhook(request: TelegramWebhookRequest):
+    """接收Telegram Webhook消息"""
+    try:
+        logger.info(f"收到Telegram Webhook请求: update_id={request.update_id}")
+
+        # 验证请求格式
+        if not verify_telegram_webhook(request.model_dump()):
+            logger.warning("Telegram Webhook请求格式无效")
+            return TelegramWebhookResponse(
+                success=False,
+                message="请求格式无效",
+                processed=False
+            )
+
+        # 检查是否有消息内容
+        if not request.message:
+            logger.debug("Telegram Webhook请求无消息内容，跳过处理")
+            return TelegramWebhookResponse(
+                success=True,
+                message="无消息内容",
+                processed=False
+            )
+
+        message = request.message
+        chat_id = message.get('chat', {}).get('id')
+        text = message.get('text', '')
+        reply_to_message = message.get('reply_to_message')
+
+        if not chat_id:
+            logger.debug("Telegram消息缺少chat_id，跳过处理")
+            return TelegramWebhookResponse(
+                success=True,
+                message="消息格式不完整",
+                processed=False
+            )
+
+        # 频率限制检查
+        if not check_telegram_rate_limit(chat_id):
+            logger.warning(f"Telegram Chat {chat_id} 请求频率过高")
+            return TelegramWebhookResponse(
+                success=False,
+                message="请求频率过高，请稍后再试",
+                processed=False
+            )
+
+        # 导入并使用命令处理器
+        from telegram_command_handler import TelegramCommandHandler
+
+        command_handler = TelegramCommandHandler()
+
+        # 检查是否是回复消息
+        if reply_to_message and text:
+            # 处理回复消息
+            response_text = await command_handler.process_reply_message(
+                reply_to_message, text, chat_id
+            )
+        elif text:
+            # 处理普通命令
+            response_text = await command_handler.process_command(text, chat_id)
+        else:
+            # 无文本内容
+            logger.debug("Telegram消息无文本内容，跳过处理")
+            return TelegramWebhookResponse(
+                success=True,
+                message="无文本内容",
+                processed=False
+            )
+
+        # 发送响应消息到Telegram
+        await send_telegram_response(chat_id, response_text)
+
+        logger.info(f"Telegram命令处理完成: {text} -> {response_text[:50]}...")
+
+        return TelegramWebhookResponse(
+            success=True,
+            message="命令处理成功",
+            processed=True
+        )
+
+    except Exception as e:
+        logger.error(f"处理Telegram Webhook异常: {e}")
+        return TelegramWebhookResponse(
+            success=False,
+            message=f"处理异常: {str(e)}",
+            processed=False
+        )
+
+async def send_telegram_response(chat_id: int, text: str):
+    """发送响应消息到Telegram"""
+    try:
+        # 使用TelegramBotManager发送消息
+        try:
+            from telegram_bot_service import telegram_bot_manager
+
+            success = await telegram_bot_manager.send_message(chat_id, text)
+            if success:
+                logger.debug(f"Telegram响应发送成功: {chat_id}")
+            else:
+                logger.warning(f"Telegram响应发送失败: {chat_id}")
+
+        except ImportError:
+            # 如果TelegramBotManager不可用，回退到原始方法
+            logger.warning("TelegramBotManager不可用，使用原始发送方法")
+            await send_telegram_response_fallback(chat_id, text)
+
+    except Exception as e:
+        logger.error(f"发送Telegram响应异常: {e}")
+
+async def send_telegram_response_fallback(chat_id: int, text: str):
+    """Telegram响应发送的回退方法"""
+    try:
+        # 获取Bot Token（从通知渠道配置中获取）
+        bot_token = None
+
+        # 查找对应的Telegram通知渠道配置
+        channels = db_manager.get_notification_channels()
+        telegram_channels = [ch for ch in channels if ch['type'] == 'telegram']
+        for channel in telegram_channels:
+            try:
+                config = json.loads(channel['config'])
+                if str(config.get('chat_id')) == str(chat_id):
+                    bot_token = config.get('bot_token')
+                    break
+            except:
+                continue
+
+        if not bot_token:
+            logger.warning(f"未找到Chat ID {chat_id} 对应的Bot Token")
+            return
+
+        # 发送消息到Telegram
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': text
+            # 移除parse_mode，使用纯文本避免解析错误
+        }
+
+        async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with session.post(api_url, json=data, timeout=timeout) as response:
+                if response.status == 200:
+                    logger.debug(f"Telegram响应发送成功（回退方法）: {chat_id}")
+                else:
+                    logger.warning(f"Telegram响应发送失败（回退方法）: {response.status}")
+
+    except Exception as e:
+        logger.error(f"Telegram响应回退方法异常: {e}")
+
+@app.get("/telegram/messages/{cookie_id}", response_model=TelegramMessageQueueResponse)
+async def get_telegram_messages(
+    cookie_id: str,
+    status: Optional[str] = None,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """获取指定账号的Telegram消息队列"""
+    try:
+        # 验证用户权限
+        user_id = current_user['user_id']
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        if cookie_id not in user_cookies:
+            raise HTTPException(status_code=403, detail="无权限访问该账号的消息")
+
+        # 获取用户的Telegram Chat ID
+        telegram_chat_id = None
+        channels = db_manager.get_notification_channels(user_id)
+        for channel in channels:
+            if channel['type'] == 'telegram':
+                try:
+                    config = json.loads(channel['config'])
+                    telegram_chat_id = int(config.get('chat_id', 0))
+                    break
+                except:
+                    continue
+
+        if not telegram_chat_id:
+            return TelegramMessageQueueResponse(
+                success=True,
+                messages=[],
+                total=0
+            )
+
+        # 获取消息列表
+        messages = db_manager.get_telegram_messages_by_chat(
+            telegram_chat_id, status, limit
+        )
+
+        # 过滤指定账号的消息
+        filtered_messages = [
+            msg for msg in messages
+            if msg['cookie_id'] == cookie_id
+        ]
+
+        return TelegramMessageQueueResponse(
+            success=True,
+            messages=filtered_messages,
+            total=len(filtered_messages)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取Telegram消息队列失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取消息队列失败: {str(e)}")
+
+@app.post("/telegram/config", response_model=TelegramConfigResponse)
+async def update_telegram_config(
+    config: TelegramConfigRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """更新Telegram Bot配置"""
+    try:
+        user_id = current_user['user_id']
+
+        # 验证Bot Token格式
+        if not config.bot_token or not config.bot_token.startswith('bot'):
+            if not config.bot_token.count(':') == 1:
+                raise HTTPException(status_code=400, detail="Bot Token格式无效")
+
+        # 验证Chat ID格式
+        try:
+            chat_id_int = int(config.chat_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Chat ID必须是数字")
+
+        # 构建配置JSON
+        config_json = json.dumps({
+            'bot_token': config.bot_token,
+            'chat_id': config.chat_id
+        })
+
+        # 查找现有的Telegram通知渠道
+        existing_channels = db_manager.get_notification_channels(user_id)
+        telegram_channel = None
+
+        for channel in existing_channels:
+            if channel['type'] == 'telegram':
+                telegram_channel = channel
+                break
+
+        if telegram_channel:
+            # 更新现有配置
+            success = db_manager.update_notification_channel(
+                telegram_channel['id'],
+                name=f"Telegram Bot ({config.chat_id})",
+                config=config_json,
+                enabled=config.enabled
+            )
+        else:
+            # 创建新的通知渠道
+            channel_id = db_manager.create_notification_channel(
+                name=f"Telegram Bot ({config.chat_id})",
+                channel_type='telegram',
+                config=config_json,
+                user_id=user_id
+            )
+            success = channel_id is not None
+
+        if success:
+            return TelegramConfigResponse(
+                success=True,
+                message="Telegram配置更新成功"
+            )
+        else:
+            raise HTTPException(status_code=500, detail="配置更新失败")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新Telegram配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"配置更新失败: {str(e)}")
 
 
 # 移除自动启动，由Start.py或手动启动
