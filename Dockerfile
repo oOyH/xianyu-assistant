@@ -30,6 +30,7 @@ RUN apt-get update && \
         tzdata \
         curl \
         ca-certificates \
+        dos2unix \
         # 图像处理依赖
         libjpeg-dev \
         libpng-dev \
@@ -80,7 +81,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# 复制项目文件
+# 复制启动脚本并设置权限（先复制脚本）
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    dos2unix /app/entrypoint.sh
+
+# 复制项目文件（放在最后以利用Docker缓存）
 COPY . .
 
 # 接收构建参数并更新版本文件
@@ -116,10 +122,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 复制启动脚本并设置权限
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh && \
-    dos2unix /app/entrypoint.sh 2>/dev/null || true
+# 启动脚本已在前面处理
 
 # 启动命令（使用ENTRYPOINT确保脚本被执行）
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
