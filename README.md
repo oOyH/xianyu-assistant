@@ -1,7 +1,7 @@
-# 🐟 闲鱼自动回复系统
+# 🐟 闲鱼智能助手 (Xianyu Assistant)
 
-[![GitHub](https://img.shields.io/badge/GitHub-zhinianboke%2Fxianyu--auto--reply-blue?logo=github)](https://github.com/zhinianboke/xianyu-auto-reply)
-[![Docker](https://img.shields.io/badge/Docker-一键部署-blue?logo=docker)](https://github.com/zhinianboke/xianyu-auto-reply#-快速开始)
+[![GitHub](https://img.shields.io/badge/GitHub-zhinianboke%2Fxianyu--assistant-blue?logo=github)](https://github.com/zhinianboke/xianyu-assistant)
+[![Docker](https://img.shields.io/badge/Docker-一键部署-blue?logo=docker)](https://github.com/zhinianboke/xianyu-assistant#-快速开始)
 [![Python](https://img.shields.io/badge/Python-3.11+-green?logo=python)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-仅供学习-red.svg)](#️-版权声明与使用条款)
 
