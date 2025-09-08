@@ -11802,27 +11802,58 @@ async function sendReplyMessage(messageId) {
     }
 
     try {
-        // 这里可以调用后端API发送回复，或者提示用户使用Telegram命令
-        showToast(`请在Telegram中发送以下命令完成回复：\n回复 ${messageId} ${replyContent}`, 'info');
+        showToast('正在发送回复...', 'info');
+
+        const response = await fetch(`/telegram/reply/${messageId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                reply_content: replyContent
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
 
         // 关闭模态框
         const modal = bootstrap.Modal.getInstance(document.getElementById('replyMessageModal'));
         modal.hide();
 
-        // 复制命令到剪贴板
-        const command = `回复 ${messageId} ${replyContent}`;
-        if (navigator.clipboard) {
-            try {
-                await navigator.clipboard.writeText(command);
-                showToast('回复命令已复制到剪贴板，请在Telegram中粘贴发送', 'success');
-            } catch (err) {
-                console.log('复制到剪贴板失败:', err);
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            // 刷新消息列表
+            loadTelegramMessages();
+        } else {
+            showToast('❌ ' + data.message, 'danger');
+
+            // 如果API回复失败，提供Telegram命令作为备选方案
+            const command = `回复 ${messageId} ${replyContent}`;
+            showToast(`备选方案：在Telegram中发送命令：\n${command}`, 'info');
+
+            // 复制命令到剪贴板
+            if (navigator.clipboard) {
+                try {
+                    await navigator.clipboard.writeText(command);
+                    showToast('命令已复制到剪贴板', 'success');
+                } catch (err) {
+                    console.log('复制到剪贴板失败:', err);
+                }
             }
         }
 
     } catch (error) {
         console.error('发送回复失败:', error);
         showToast('发送回复失败: ' + error.message, 'danger');
+
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('replyMessageModal'));
+        if (modal) modal.hide();
     }
 }
 
@@ -11837,8 +11868,28 @@ async function testTelegramBot() {
     }
 
     try {
-        // 这里可以发送一个测试消息到Telegram
-        showToast('测试消息发送功能将在后续版本中实现', 'info');
+        showToast('正在发送测试消息...', 'info');
+
+        const response = await fetch(`/telegram/test/${selectedAccount}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+        } else {
+            showToast('❌ ' + data.message, 'danger');
+        }
+
     } catch (error) {
         console.error('测试Telegram机器人失败:', error);
         showToast('测试失败: ' + error.message, 'danger');

@@ -138,8 +138,13 @@ class TelegramCommandHandler:
     def _find_message_by_content(self, original_text: str, telegram_chat_id: int) -> Optional[Dict[str, Any]]:
         """通过消息内容查找匹配的消息记录"""
         try:
-            # 获取该聊天的所有待处理消息
+            # 先尝试查找待处理消息，如果没有则查找最近的所有消息
             messages = self.db_manager.get_telegram_messages_by_chat(telegram_chat_id, 'pending', 50)
+
+            if not messages:
+                logger.debug("没有待处理消息，查找最近的所有消息")
+                # 查找最近24小时内的所有消息（包括已处理的）
+                messages = self.db_manager.get_telegram_messages_by_chat(telegram_chat_id, None, 100)
 
             if not messages:
                 logger.debug("没有找到待处理的消息")
@@ -173,50 +178,134 @@ class TelegramCommandHandler:
     def _messages_match(self, telegram_text: str, stored_text: str) -> bool:
         """判断两个消息是否匹配"""
         try:
+            logger.debug(f"消息匹配比较:")
+            logger.debug(f"Telegram文本: {telegram_text[:200]}...")
+            logger.debug(f"存储文本: {stored_text[:200]}...")
+
             # 提取关键信息进行匹配
             def extract_key_info(text: str) -> dict:
                 import re
                 info = {}
 
-                # 提取账号
-                account_match = re.search(r'账号[：:]\s*([^\n]+)', text)
-                if account_match:
-                    info['account'] = account_match.group(1).strip()
+                # 提取账号（支持多种格式）
+                account_patterns = [
+                    r'账号[：:]\s*([^\n]+)',
+                    r'Account[：:]\s*([^\n]+)'
+                ]
+                for pattern in account_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        info['account'] = match.group(1).strip()
+                        break
 
-                # 提取买家
-                buyer_match = re.search(r'买家[：:]\s*([^\n（]+)', text)
-                if buyer_match:
-                    info['buyer'] = buyer_match.group(1).strip()
+                # 提取买家（支持多种格式）
+                buyer_patterns = [
+                    r'买家[：:]\s*([^\n（\(]+)',
+                    r'Buyer[：:]\s*([^\n（\(]+)'
+                ]
+                for pattern in buyer_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        info['buyer'] = match.group(1).strip()
+                        break
 
-                # 提取消息内容
-                content_match = re.search(r'消息内容[：:]\s*([^\n]+)', text)
-                if content_match:
-                    info['content'] = content_match.group(1).strip()
+                # 提取消息内容（支持多种格式）
+                content_patterns = [
+                    r'消息内容[：:]\s*([^\n]+)',
+                    r'内容[：:]\s*([^\n]+)',
+                    r'Message[：:]\s*([^\n]+)'
+                ]
+                for pattern in content_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        info['content'] = match.group(1).strip()
+                        break
 
-                # 提取聊天ID
-                chat_match = re.search(r'聊天ID[：:]\s*([^\n]+)', text)
-                if chat_match:
-                    info['chat_id'] = chat_match.group(1).strip()
+                # 提取聊天ID（支持多种格式）
+                chat_patterns = [
+                    r'聊天ID[：:]\s*([^\n]+)',
+                    r'Chat\s*ID[：:]\s*([^\n]+)',
+                    r'对话ID[：:]\s*([^\n]+)'
+                ]
+                for pattern in chat_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        info['chat_id'] = match.group(1).strip()
+                        break
+
+                # 提取时间信息
+                time_patterns = [
+                    r'时间[：:]\s*([^\n]+)',
+                    r'Time[：:]\s*([^\n]+)'
+                ]
+                for pattern in time_patterns:
+                    match = re.search(pattern, text)
+                    if match:
+                        info['time'] = match.group(1).strip()
+                        break
 
                 return info
 
             telegram_info = extract_key_info(telegram_text)
             stored_info = extract_key_info(stored_text)
 
-            # 至少需要匹配账号和消息内容
-            if (telegram_info.get('account') == stored_info.get('account') and
-                telegram_info.get('content') == stored_info.get('content')):
-                return True
+            logger.debug(f"Telegram信息: {telegram_info}")
+            logger.debug(f"存储信息: {stored_info}")
 
-            # 或者匹配买家和聊天ID
-            if (telegram_info.get('buyer') == stored_info.get('buyer') and
-                telegram_info.get('chat_id') == stored_info.get('chat_id')):
-                return True
+            # 计算匹配分数
+            match_score = 0
+            total_score = 0
 
+            # 账号匹配（权重：3）
+            if telegram_info.get('account') and stored_info.get('account'):
+                total_score += 3
+                if telegram_info['account'] == stored_info['account']:
+                    match_score += 3
+                    logger.debug("账号匹配成功")
+
+            # 消息内容匹配（权重：3）
+            if telegram_info.get('content') and stored_info.get('content'):
+                total_score += 3
+                if telegram_info['content'] == stored_info['content']:
+                    match_score += 3
+                    logger.debug("消息内容匹配成功")
+
+            # 买家匹配（权重：2）
+            if telegram_info.get('buyer') and stored_info.get('buyer'):
+                total_score += 2
+                if telegram_info['buyer'] == stored_info['buyer']:
+                    match_score += 2
+                    logger.debug("买家匹配成功")
+
+            # 聊天ID匹配（权重：2）
+            if telegram_info.get('chat_id') and stored_info.get('chat_id'):
+                total_score += 2
+                if telegram_info['chat_id'] == stored_info['chat_id']:
+                    match_score += 2
+                    logger.debug("聊天ID匹配成功")
+
+            # 时间匹配（权重：1）
+            if telegram_info.get('time') and stored_info.get('time'):
+                total_score += 1
+                if telegram_info['time'] == stored_info['time']:
+                    match_score += 1
+                    logger.debug("时间匹配成功")
+
+            # 计算匹配率
+            if total_score > 0:
+                match_rate = match_score / total_score
+                logger.debug(f"匹配分数: {match_score}/{total_score} = {match_rate:.2f}")
+
+                # 匹配率超过60%认为匹配成功
+                if match_rate >= 0.6:
+                    logger.info(f"消息匹配成功，匹配率: {match_rate:.2f}")
+                    return True
+
+            logger.debug("消息匹配失败")
             return False
 
         except Exception as e:
-            logger.debug(f"消息匹配判断失败: {e}")
+            logger.error(f"消息匹配判断失败: {e}")
             return False
     
     async def handle_reply_command(self, match, telegram_chat_id: int) -> str:
@@ -602,31 +691,51 @@ AI #A001_123456_001
                 # 导入cookie_manager来获取实例
                 import cookie_manager
 
-                if cookie_manager.manager and hasattr(cookie_manager.manager, 'instances'):
-                    if cookie_id in cookie_manager.manager.instances:
-                        instance = cookie_manager.manager.instances[cookie_id]
+                logger.debug(f"检查cookie_manager状态...")
 
-                        # 使用send_msg_once方法发送消息
-                        await instance.send_msg_once(
-                            toid=send_user_id,
-                            item_id=item_id,
-                            text=reply_content
-                        )
-
-                        logger.info(f"消息发送成功: {cookie_id} -> {send_user_id}")
-                        return True
-                    else:
-                        logger.warning(f"账号实例不存在: {cookie_id}")
-                        return False
-                else:
-                    logger.warning("CookieManager未初始化或无实例")
+                if not cookie_manager.manager:
+                    logger.error("CookieManager未初始化")
                     return False
 
-            except ImportError:
-                logger.error("无法导入cookie_manager")
+                if not hasattr(cookie_manager.manager, 'instances'):
+                    logger.error("CookieManager没有instances属性")
+                    return False
+
+                logger.debug(f"可用实例: {list(cookie_manager.manager.instances.keys())}")
+
+                if cookie_id not in cookie_manager.manager.instances:
+                    logger.error(f"账号实例不存在: {cookie_id}")
+                    logger.debug(f"当前可用账号: {list(cookie_manager.manager.instances.keys())}")
+                    return False
+
+                instance = cookie_manager.manager.instances[cookie_id]
+                logger.debug(f"获取到实例: {type(instance)}")
+
+                # 检查实例是否有send_msg_once方法
+                if not hasattr(instance, 'send_msg_once'):
+                    logger.error(f"实例没有send_msg_once方法: {type(instance)}")
+                    return False
+
+                # 使用send_msg_once方法发送消息
+                logger.info(f"开始发送消息: {cookie_id} -> {send_user_id}, item_id: {item_id}")
+
+                result = await instance.send_msg_once(
+                    toid=send_user_id,
+                    item_id=item_id,
+                    text=reply_content
+                )
+
+                logger.info(f"消息发送结果: {result}")
+                logger.info(f"消息发送成功: {cookie_id} -> {send_user_id}")
+                return True
+
+            except ImportError as e:
+                logger.error(f"无法导入cookie_manager: {e}")
                 return False
             except Exception as e:
                 logger.error(f"发送消息到闲鱼异常: {e}")
+                import traceback
+                logger.error(f"详细错误信息: {traceback.format_exc()}")
                 return False
 
         except Exception as e:

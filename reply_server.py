@@ -5194,6 +5194,101 @@ def verify_telegram_webhook(request_data: dict) -> bool:
         logger.error(f"验证Telegram Webhook请求失败: {e}")
         return False
 
+@app.post("/telegram/test/{cookie_id}")
+async def test_telegram_bot(cookie_id: str, current_user: dict = Depends(get_current_user)):
+    """测试Telegram机器人连接"""
+    try:
+        logger.info(f"测试Telegram机器人连接: {cookie_id}")
+
+        # 获取用户的通知渠道配置
+        channels = db_manager.get_notification_channels()
+        telegram_config = None
+
+        for channel in channels:
+            if (channel['user_id'] == current_user['user_id'] and
+                channel['type'] == 'telegram'):
+                try:
+                    import json
+                    config = json.loads(channel['config'])
+                    # 这里可以添加更多的匹配逻辑，比如通过cookie_id关联
+                    telegram_config = config
+                    break
+                except:
+                    continue
+
+        if not telegram_config:
+            return {"success": False, "message": "未找到Telegram配置"}
+
+        bot_token = telegram_config.get('bot_token')
+        chat_id = telegram_config.get('chat_id')
+
+        if not bot_token or not chat_id:
+            return {"success": False, "message": "Telegram配置不完整"}
+
+        # 发送测试消息
+        test_message = f"""🧪 测试消息
+
+账号: {cookie_id}
+时间: {time.strftime('%Y-%m-%d %H:%M:%S')}
+状态: 连接正常 ✅
+
+这是一条测试消息，用于验证Telegram机器人是否正常工作。"""
+
+        # 使用现有的发送方法
+        success = await send_telegram_response(int(chat_id), test_message)
+
+        if success:
+            return {"success": True, "message": "测试消息发送成功"}
+        else:
+            return {"success": False, "message": "测试消息发送失败"}
+
+    except Exception as e:
+        logger.error(f"测试Telegram机器人失败: {e}")
+        return {"success": False, "message": f"测试失败: {str(e)}"}
+
+@app.post("/telegram/reply/{message_id}")
+async def reply_telegram_message(message_id: str, request: dict, current_user: dict = Depends(get_current_user)):
+    """通过Web界面回复Telegram消息"""
+    try:
+        reply_content = request.get('reply_content', '').strip()
+        if not reply_content:
+            return {"success": False, "message": "回复内容不能为空"}
+
+        logger.info(f"Web界面回复Telegram消息: {message_id} -> {reply_content}")
+
+        # 获取消息记录
+        message_record = db_manager.get_telegram_message_by_id(message_id)
+        if not message_record:
+            return {"success": False, "message": "消息不存在或已过期"}
+
+        # 验证用户权限（通过用户ID关联）
+        # 这里可以添加更严格的权限验证
+
+        # 检查消息状态（允许重复回复，但给出提示）
+        if message_record['status'] == 'replied':
+            logger.info(f"重复回复消息: {message_id}")
+            # 不阻止重复回复，只是记录日志
+
+        # 使用命令处理器发送回复
+        from telegram_command_handler import TelegramCommandHandler
+        command_handler = TelegramCommandHandler()
+
+        # 直接调用发送方法
+        success = await command_handler._send_to_xianyu(message_record, reply_content)
+
+        if success:
+            # 更新消息状态
+            db_manager.update_telegram_message_status(
+                message_id, 'replied', reply_content, 'web_interface'
+            )
+            return {"success": True, "message": "回复发送成功"}
+        else:
+            return {"success": False, "message": "发送失败，请检查账号连接状态"}
+
+    except Exception as e:
+        logger.error(f"Web界面回复Telegram消息失败: {e}")
+        return {"success": False, "message": f"回复失败: {str(e)}"}
+
 @app.post("/telegram/webhook", response_model=TelegramWebhookResponse)
 async def telegram_webhook(request: TelegramWebhookRequest):
     """接收Telegram Webhook消息"""
