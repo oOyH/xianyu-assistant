@@ -107,6 +107,10 @@ logger.add(
 )
 
 class XianyuLive:
+    # 类级别的实例注册表，用于外部访问正在运行的实例
+    _instances = {}  # {cookie_id: XianyuLive实例}
+    _instances_lock = asyncio.Lock()
+
     # 类级别的锁字典，为每个order_id维护一个锁（用于自动发货）
     _order_locks = defaultdict(lambda: asyncio.Lock())
     # 记录锁的最后使用时间，用于清理
@@ -122,7 +126,32 @@ class XianyuLive:
     # 商品详情缓存（24小时有效）
     _item_detail_cache = {}  # {item_id: {'detail': str, 'timestamp': float}}
     _item_detail_cache_lock = asyncio.Lock()
-    
+
+    @classmethod
+    async def register_instance(cls, cookie_id: str, instance):
+        """注册实例到全局注册表"""
+        async with cls._instances_lock:
+            cls._instances[cookie_id] = instance
+            logger.debug(f"【{cookie_id}】实例已注册到全局注册表")
+
+    @classmethod
+    async def unregister_instance(cls, cookie_id: str):
+        """从全局注册表移除实例"""
+        async with cls._instances_lock:
+            if cookie_id in cls._instances:
+                del cls._instances[cookie_id]
+                logger.debug(f"【{cookie_id}】实例已从全局注册表移除")
+
+    @classmethod
+    def get_instance(cls, cookie_id: str):
+        """获取指定cookie_id的实例"""
+        return cls._instances.get(cookie_id)
+
+    @classmethod
+    def get_all_instances(cls):
+        """获取所有注册的实例"""
+        return cls._instances.copy()
+
     def _safe_str(self, e):
         """安全地将异常转换为字符串"""
         try:
@@ -2332,12 +2361,12 @@ class XianyuLive:
                                 'chat_id': chat_id,
                                 'telegram_chat_id': int(config_data.get('chat_id', 0))
                             }
-                            # 发送原有格式的消息，但在后台创建映射
+                            # 发送带交互按钮的消息
                             await self._send_telegram_notification(
                                 config_data,
                                 notification_msg,
-                                enable_interaction=False,  # 保持原有格式
-                                message_context=message_context  # 用于后台映射
+                                enable_interaction=True,  # 启用交互按钮
+                                message_context=message_context  # 消息上下文
                             )
                         case _:
                             logger.warning(f"📱 不支持的通知渠道类型: {channel_type}")
@@ -2803,7 +2832,9 @@ class XianyuLive:
 
             # 如果有消息上下文，创建后台映射（无论是否启用交互功能）
             if message_context:
-                await self._create_telegram_message_mapping(message_context)
+                message_id = await self._create_telegram_message_mapping(message_context)
+                if message_id:
+                    message_context['message_id'] = message_id  # 添加message_id到上下文
 
             # 如果启用交互功能且有消息上下文，生成结构化消息
             if enable_interaction and message_context:
@@ -2816,27 +2847,55 @@ class XianyuLive:
                 from telegram_bot_service import TelegramBotService
 
                 async with TelegramBotService(bot_token) as bot_service:
-                    success = await bot_service.send_message(
-                        chat_id=int(chat_id),
-                        text=message,
-                        parse_mode=None  # 使用纯文本，避免Markdown解析错误
-                    )
+                    # 检查是否需要添加交互按钮
+                    if enable_interaction and message_context:
+                        # 为闲鱼消息添加操作按钮
+                        message_id = message_context.get('message_id')
+                        if message_id:
+                            buttons = [
+                                [("✅ 回复", f"reply_{message_id}"), ("🤖 AI回复", f"ai_{message_id}")],
+                                [("🚫 忽略", f"ignore_{message_id}"), ("👁️ 查看", f"view_{message_id}")]
+                            ]
+                            success = await bot_service.send_message_with_buttons(
+                                chat_id=int(chat_id),
+                                text=message,
+                                buttons=buttons
+                            )
+                        else:
+                            success = await bot_service.send_message(
+                                chat_id=int(chat_id),
+                                text=message,
+                                parse_mode=None
+                            )
+                    else:
+                        # 普通消息，不带按钮
+                        success = await bot_service.send_message(
+                            chat_id=int(chat_id),
+                            text=message,
+                            parse_mode=None  # 智能格式处理
+                        )
 
                     if success:
                         logger.info(f"Telegram通知发送成功")
+                        return
                     else:
                         logger.warning(f"Telegram通知发送失败")
 
             except ImportError:
-                # 如果TelegramBotService不可用，回退到原始方法
-                logger.warning("TelegramBotService不可用，使用原始发送方法")
-                await self._send_telegram_notification_fallback(config_data, message)
+                logger.warning("TelegramBotService不可用，使用Fallback方法")
+
+            # 回退方法
+            fallback_success = await self._send_telegram_notification_fallback(config_data, message)
+            if fallback_success:
+                logger.info(f"Telegram通知发送成功（Fallback方法）")
+            else:
+                logger.warning(f"Telegram通知发送失败（Fallback方法）")
 
         except Exception as e:
             logger.error(f"发送Telegram通知异常: {self._safe_str(e)}")
 
-    async def _send_telegram_notification_fallback(self, config_data: dict, message: str):
-        """Telegram通知发送的回退方法"""
+    async def _send_telegram_notification_fallback(self, config_data: dict, message: str) -> bool:
+        """Telegram通知发送的回退方法 - 修复版本"""
         try:
             import aiohttp
 
@@ -2844,22 +2903,37 @@ class XianyuLive:
             chat_id = config_data.get('chat_id', '')
 
             api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+            # 修复：移除parse_mode，使用纯文本避免解析错误
             data = {
                 'chat_id': chat_id,
-                'text': message,
-                'parse_mode': 'Markdown'
+                'text': message
+                # 不再使用 'parse_mode': 'Markdown' 避免实体解析错误
             }
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
                 async with session.post(api_url, json=data, timeout=timeout) as response:
+                    response_data = await response.json() if response.content_type == 'application/json' else {}
+
                     if response.status == 200:
                         logger.info(f"Telegram通知发送成功（回退方法）")
+                        return True
                     else:
-                        logger.warning(f"Telegram通知发送失败（回退方法）: {response.status}")
+                        error_desc = response_data.get('description', '未知错误')
+                        logger.warning(f"Telegram通知发送失败（回退方法）: {response.status}, {error_desc}")
+
+                        # 特殊错误处理
+                        if response.status == 400 and 'parse entities' in error_desc.lower():
+                            logger.error(f"实体解析错误已修复，但仍然失败: {error_desc}")
+
+                        return False
 
         except Exception as e:
             logger.error(f"Telegram通知回退方法异常: {self._safe_str(e)}")
+            import traceback
+            logger.error(f"异常详情: {traceback.format_exc()}")
+            return False
 
     def _generate_telegram_message_id(self, cookie_id: str) -> str:
         """生成唯一的Telegram消息编号"""
@@ -2921,16 +2995,16 @@ class XianyuLive:
                 return None
 
             # 格式化结构化消息（简洁格式）
-            formatted_message = f"""🚨 接收消息通知
+            formatted_message = f"""📨 新消息通知
 
-账号: {self.cookie_id}
-买家: {send_user_name}（{send_user_id}）
-商品: {item_title} (ID: {item_id})
-聊天ID: {chat_id}
-消息内容: {send_message}
-时间: {time.strftime('%Y-%m-%d %H:%M:%S')}
+🏪 账号:  {self.cookie_id}
+👤 买家:  {send_user_name}
+📦 商品:  {item_title}
+🆔 聊天ID:  {chat_id}
+💭 消息内容:  {send_message}
+⏰ 时间:  {time.strftime('%Y-%m-%d %H:%M:%S')}
 
-消息编号: {message_id}"""
+点击下方按钮快速回复 👇"""
 
             logger.info(f"生成交互式Telegram消息: {message_id}")
             return formatted_message.strip()
@@ -2939,7 +3013,7 @@ class XianyuLive:
             logger.error(f"格式化交互式Telegram消息失败: {self._safe_str(e)}")
             return None
 
-    async def _create_telegram_message_mapping(self, message_context: dict):
+    async def _create_telegram_message_mapping(self, message_context: dict) -> str:
         """创建Telegram消息映射（后台静默处理）"""
         try:
             from db_manager import db_manager
@@ -2978,11 +3052,14 @@ class XianyuLive:
 
             if success:
                 logger.info(f"创建Telegram消息映射成功: {message_id}")
+                return message_id
             else:
                 logger.error(f"创建Telegram消息映射失败: {message_id}")
+                return message_id  # 即使失败也返回ID，用于按钮生成
 
         except Exception as e:
             logger.error(f"创建Telegram消息映射异常: {self._safe_str(e)}")
+            return None
 
     async def send_token_refresh_notification(self, error_message: str, notification_type: str = "token_refresh", chat_id: str = None):
         """发送Token刷新异常通知（带防重复机制）"""
@@ -3674,8 +3751,14 @@ class XianyuLive:
                     # 处理备注信息和变量替换
                     final_content = self._process_delivery_content_with_description(delivery_content, rule.get('card_description', ''))
 
-                    # 增加发货次数统计
-                    db_manager.increment_delivery_times(rule['id'])
+                    # 增加发货次数统计并记录发货记录
+                    db_manager.increment_delivery_times(
+                        rule_id=rule['id'],
+                        order_id=order_id,
+                        item_id=item_id,
+                        buyer_id=send_user_id,
+                        delivery_content=final_content[:500]  # 只保存前500字符
+                    )
                     logger.info(f"自动发货成功: 规则ID={rule['id']}, 内容长度={len(final_content)}")
                     return final_content
                 else:
@@ -5434,6 +5517,9 @@ class XianyuLive:
             elif send_message == '[你已发货]':
                 logger.info(f'[{msg_time}] 【{self.cookie_id}】发货确认消息不处理')
                 return
+            elif send_message.startswith('[禁止未成年购买') or '禁止未成年购买' in send_message:
+                logger.info(f'[{msg_time}] 【{self.cookie_id}】系统提醒消息不处理: {send_message}')
+                return
             # 【重要】检查是否为自动发货触发消息 - 即使在人工接入暂停期间也要处理
             elif self._is_auto_delivery_trigger(send_message):
                 logger.info(f'[{msg_time}] 【{self.cookie_id}】检测到自动发货触发消息，即使在暂停期间也继续处理: {send_message}')
@@ -5602,6 +5688,10 @@ class XianyuLive:
         """主程序入口"""
         try:
             logger.info(f"【{self.cookie_id}】开始启动XianyuLive主程序...")
+
+            # 注册实例到全局注册表
+            await self.register_instance(self.cookie_id, self)
+
             await self.create_session()  # 创建session
             logger.info(f"【{self.cookie_id}】Session创建完成，开始WebSocket连接循环...")
 
@@ -5718,6 +5808,9 @@ class XianyuLive:
                     await asyncio.sleep(retry_delay)
                     continue
         finally:
+            # 从全局注册表注销实例
+            await self.unregister_instance(self.cookie_id)
+
             # 清空当前token
             if self.current_token:
                 logger.info(f"【{self.cookie_id}】程序退出，清空当前token")

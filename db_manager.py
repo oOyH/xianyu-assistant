@@ -303,6 +303,21 @@ class DBManager:
             )
             ''')
 
+            # 创建发货记录表（用于准确统计）
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS delivery_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER NOT NULL,
+                order_id TEXT,
+                item_id TEXT,
+                buyer_id TEXT,
+                delivery_content TEXT,
+                user_id INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (rule_id) REFERENCES delivery_rules(id) ON DELETE CASCADE
+            )
+            ''')
+
             # 创建默认回复表
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS default_replies (
@@ -415,7 +430,8 @@ class DBManager:
             ('smtp_from', '', '发件人显示名（留空则使用用户名）'),
             ('smtp_use_tls', 'true', '是否启用TLS'),
             ('smtp_use_ssl', 'false', '是否启用SSL'),
-            ('qq_reply_secret_key', 'xianyu_api_secret_2024', 'QQ回复消息API秘钥')
+            ('qq_reply_secret_key', 'xianyu_api_secret_2024', 'QQ回复消息API秘钥'),
+            ('telegram_reply_secret_key', 'xianyuvip2025', 'Telegram回复消息API秘钥')
             ''')
 
             # 检查并升级数据库
@@ -3174,18 +3190,32 @@ class DBManager:
                 self.conn.rollback()
                 raise
 
-    def increment_delivery_times(self, rule_id: int):
-        """增加发货次数"""
+    def increment_delivery_times(self, rule_id: int, order_id: str = None, item_id: str = None, buyer_id: str = None, delivery_content: str = None):
+        """增加发货次数并记录发货记录"""
         with self.lock:
             try:
                 cursor = self.conn.cursor()
+
+                # 更新发货规则的发货次数
                 cursor.execute('''
                 UPDATE delivery_rules
                 SET delivery_times = delivery_times + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 ''', (rule_id,))
+
+                # 获取规则的用户ID
+                cursor.execute('SELECT user_id FROM delivery_rules WHERE id = ?', (rule_id,))
+                result = cursor.fetchone()
+                user_id = result[0] if result else 1
+
+                # 记录发货记录
+                cursor.execute('''
+                INSERT INTO delivery_records (rule_id, order_id, item_id, buyer_id, delivery_content, user_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''', (rule_id, order_id, item_id, buyer_id, delivery_content, user_id))
+
                 self.conn.commit()
-                logger.debug(f"发货规则 {rule_id} 发货次数已增加")
+                logger.debug(f"发货规则 {rule_id} 发货次数已增加，发货记录已保存")
             except Exception as e:
                 logger.error(f"更新发货次数失败: {e}")
 
@@ -3195,23 +3225,19 @@ class DBManager:
             try:
                 cursor = self.conn.cursor()
 
-                # 获取今日发货次数：统计今天实际发货的总次数
-                # 方法：统计今日updated_at被更新的规则的delivery_times总和
+                # 获取今日发货次数：统计今天的发货记录数量
                 if user_id is not None:
-                    # 统计今日有发货活动的规则的发货次数总和
                     cursor.execute('''
-                    SELECT COALESCE(SUM(delivery_times), 0) as today_deliveries
-                    FROM delivery_rules
+                    SELECT COUNT(*) as today_deliveries
+                    FROM delivery_records
                     WHERE user_id = ?
-                    AND date(updated_at) = date('now', 'localtime')
-                    AND delivery_times > 0
+                    AND date(created_at) = date('now', 'localtime')
                     ''', (user_id,))
                 else:
                     cursor.execute('''
-                    SELECT COALESCE(SUM(delivery_times), 0) as today_deliveries
-                    FROM delivery_rules
-                    WHERE date(updated_at) = date('now', 'localtime')
-                    AND delivery_times > 0
+                    SELECT COUNT(*) as today_deliveries
+                    FROM delivery_records
+                    WHERE date(created_at) = date('now', 'localtime')
                     ''')
 
                 result = cursor.fetchone()
@@ -4973,6 +4999,47 @@ class DBManager:
             except Exception as e:
                 logger.error(f"获取Telegram消息列表失败: {e}")
                 return []
+
+    def delete_telegram_messages_by_ids(self, message_ids: List[str], telegram_chat_id: int) -> int:
+        """根据消息ID列表删除Telegram消息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                placeholders = ','.join(['?' for _ in message_ids])
+                cursor.execute(f'''
+                DELETE FROM telegram_message_queue
+                WHERE message_id IN ({placeholders}) AND telegram_chat_id = ?
+                ''', message_ids + [telegram_chat_id])
+                self.conn.commit()
+                deleted_count = cursor.rowcount
+                logger.info(f"删除Telegram消息成功: {deleted_count} 条")
+                return deleted_count
+            except Exception as e:
+                logger.error(f"删除Telegram消息失败: {e}")
+                self.conn.rollback()
+                return 0
+
+    def delete_telegram_messages_by_status(self, telegram_chat_id: int, status: str) -> int:
+        """根据状态删除Telegram消息"""
+        with self.lock:
+            try:
+                cursor = self.conn.cursor()
+                if status == 'all':
+                    cursor.execute('''
+                    DELETE FROM telegram_message_queue WHERE telegram_chat_id = ?
+                    ''', (telegram_chat_id,))
+                else:
+                    cursor.execute('''
+                    DELETE FROM telegram_message_queue WHERE telegram_chat_id = ? AND status = ?
+                    ''', (telegram_chat_id, status))
+                self.conn.commit()
+                deleted_count = cursor.rowcount
+                logger.info(f"删除Telegram消息成功: {deleted_count} 条 (状态: {status})")
+                return deleted_count
+            except Exception as e:
+                logger.error(f"删除Telegram消息失败: {e}")
+                self.conn.rollback()
+                return 0
 
     def cleanup_old_telegram_messages(self, days: int = 7) -> int:
         """清理指定天数前的Telegram消息"""

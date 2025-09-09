@@ -261,21 +261,27 @@
           </div>
           <div class="card-body">
             <!-- 添加方式选择 -->
-            <div class="row mb-4">
-              <div class="col-12">
-                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                  <button type="button" class="btn btn-lg me-md-2 flex-fill qr-login-btn" onclick="showQRCodeLogin()" style="max-width: 300px;">
-                    <i class="bi bi-qr-code me-2"></i>
-                    <span class="fw-bold">扫码登录</span>
-                    <br>
-                    <small class="opacity-75">不推荐，一般都不成功</small>
-                  </button>
-                  <button type="button" class="btn btn-outline-secondary btn-lg flex-fill manual-input-btn" onclick="toggleManualInput()" style="max-width: 300px;">
-                    <i class="bi bi-keyboard me-2"></i>
-                    <span class="fw-bold">手动输入</span>
-                    <br>
-                    <small class="opacity-75">推荐方式，使用消息界面的cookie</small>
-                  </button>
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <div class="login-method-card" onclick="showQRCodeLogin()">
+                  <div class="card h-100 border-success">
+                    <div class="card-body text-center">
+                      <i class="bi bi-qr-code text-success mb-2" style="font-size: 2rem;"></i>
+                      <h6 class="card-title">扫码登录</h6>
+                      <p class="card-text text-muted small mb-0">不推荐，一般都不成功</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="login-method-card" onclick="toggleManualInput()">
+                  <div class="card h-100 border-primary">
+                    <div class="card-body text-center">
+                      <i class="bi bi-keyboard text-primary mb-2" style="font-size: 2rem;"></i>
+                      <h6 class="card-title">手动输入</h6>
+                      <p class="card-text text-muted small mb-0">推荐方式，使用消息界面的cookie</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -326,34 +332,34 @@
               <table class="table table-hover" id="cookieTable">
                 <colgroup>
                   <col style="width: 8%;">   <!-- 账号ID -->
-                  <col style="width: 20%;">  <!-- Cookie值 -->
+                  <col style="width: 22%;">  <!-- Cookie值 -->
                   <col style="width: 6%;">   <!-- 关键词 -->
                   <col style="width: 8%;">   <!-- 状态 -->
                   <col style="width: 7%;">   <!-- 默认回复 -->
                   <col style="width: 7%;">   <!-- AI回复 -->
                   <col style="width: 9%;">   <!-- 自动确认发货 -->
-                  <col style="width: 6%;">   <!-- 备注 -->
+                  <col style="width: 8%;">   <!-- 备注 -->
                   <col style="width: 8%;">   <!-- 暂停时间 -->
-                  <col style="width: 21%;">  <!-- 操作 -->
+                  <col style="width: 17%;">  <!-- 操作 -->
                 </colgroup>
                 <thead>
                   <tr>
-                    <th style="width: 8%">账号ID</th>
-                    <th style="width: 20%">Cookie值</th>
-                    <th style="width: 6%">关键词</th>
-                    <th style="width: 8%">状态</th>
-                    <th style="width: 7%">默认回复</th>
-                    <th style="width: 7%">AI回复</th>
-                    <th style="width: 9%">自动确认发货</th>
-                    <th style="width: 6%">备注</th>
-                    <th style="width: 8%">
+                    <th style="width: 8%; text-align: center;">账号ID</th>
+                    <th style="width: 22%; text-align: center;">Cookie值</th>
+                    <th style="width: 6%; text-align: center;">关键词</th>
+                    <th style="width: 8%; text-align: center;">状态</th>
+                    <th style="width: 7%; text-align: center;">默认回复</th>
+                    <th style="width: 7%; text-align: center;">AI回复</th>
+                    <th style="width: 9%; text-align: center;">自动确认发货</th>
+                    <th style="width: 8%; text-align: center;">备注</th>
+                    <th style="width: 8%; text-align: center;">
                       暂停时间
                       <i class="bi bi-question-circle ms-1"
                          data-bs-toggle="tooltip"
                          data-bs-placement="top"
                          title="检测到手动发出消息后，自动回复暂停的时间长度（分钟）。如果在暂停期间再次手动发出消息，会重新开始计时。"></i>
                     </th>
-                    <th style="width: 21%; text-align: center;">操作</th>
+                    <th style="width: 17%; text-align: center;">操作</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -689,9 +695,24 @@
                      placeholder="搜索订单ID或商品ID..." style="width: 300px;">
               <h5 class="mb-0">订单列表</h5>
             </div>
-            <button class="btn btn-sm btn-outline-danger" onclick="batchDeleteOrders()" id="batchDeleteOrdersBtn" disabled>
-              <i class="bi bi-trash"></i> 批量删除
-            </button>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-danger" onclick="batchDeleteSelectedOrders()" id="batchDeleteOrdersBtn" disabled>
+                <i class="bi bi-trash"></i> 批量删除
+              </button>
+              <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
+                  <i class="bi bi-download"></i> 导出数据
+                </button>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="#" onclick="exportOrders('csv')">
+                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>导出为 CSV
+                  </a></li>
+                  <li><a class="dropdown-item" href="#" onclick="exportOrders('json')">
+                    <i class="bi bi-file-earmark-code me-2"></i>导出为 JSON
+                  </a></li>
+                </ul>
+              </div>
+            </div>
           </div>
           <div class="card-body">
             <!-- 搜索统计信息 -->
@@ -703,18 +724,18 @@
               <table class="table table-hover">
                 <thead>
                   <tr>
-                    <th style="width: 5%">
+                    <th style="width: 4%">
                       <input type="checkbox" id="selectAllOrders" onchange="toggleSelectAllOrders(this)">
                     </th>
-                    <th style="width: 15%">订单ID</th>
-                    <th style="width: 12%">商品ID</th>
-                    <th style="width: 10%">买家ID</th>
-                    <th style="width: 12%">规格信息</th>
-                    <th style="width: 8%">数量</th>
-                    <th style="width: 10%">金额</th>
-                    <th style="width: 8%">状态</th>
-                    <th style="width: 10%">账号ID</th>
-                    <th style="width: 10%">操作</th>
+                    <th style="width: 18%">订单ID</th>
+                    <th style="width: 15%">商品ID</th>
+                    <th style="width: 12%">买家ID</th>
+                    <th style="width: 10%">规格信息</th>
+                    <th style="width: 6%">数量</th>
+                    <th style="width: 8%">金额</th>
+                    <th style="width: 7%">状态</th>
+                    <th style="width: 12%">账号ID</th>
+                    <th style="width: 8%">操作</th>
                   </tr>
                 </thead>
                 <tbody id="ordersTableBody">
@@ -890,7 +911,7 @@
       <div class="content-body">
         <!-- 卡券列表 -->
         <div class="row">
-          <div class="col-md-8">
+          <div class="col-md-9">
             <div class="card">
               <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">卡券列表</h5>
@@ -927,7 +948,7 @@
               </div>
             </div>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <div class="card">
               <div class="card-header">
                 <h5 class="mb-0">统计信息</h5>
@@ -1316,6 +1337,40 @@
           </div>
         </div>
 
+        <!-- API密钥配置 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <span><i class="bi bi-key me-2"></i>API密钥配置</span>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <label for="telegramApiKey" class="form-label">消息发送API密钥</label>
+                <input type="password" class="form-control" id="telegramApiKey"
+                       placeholder="输入API密钥（用于Telegram回复功能）">
+                <div class="form-text mt-1">
+                  <i class="bi bi-info-circle me-1"></i>
+                  此密钥专用于Telegram回复消息到闲鱼，独立于QQ回复功能
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">操作</label>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-secondary" onclick="toggleTelegramApiKeyVisibility()">
+                    <i class="bi bi-eye me-1" id="telegramApiKeyToggleIcon"></i>显示
+                  </button>
+                  <button class="btn btn-sm btn-primary" onclick="saveTelegramApiKey()">
+                    <i class="bi bi-check me-1"></i>保存
+                  </button>
+                  <button class="btn btn-sm btn-outline-info" onclick="resetTelegramApiKey()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 消息统计 -->
         <div class="row mb-4">
           <div class="col-md-3">
@@ -1360,6 +1415,35 @@
               <button class="btn btn-sm btn-outline-primary me-2" onclick="loadTelegramMessages()">
                 <i class="bi bi-arrow-clockwise me-1"></i>刷新
               </button>
+              <div class="btn-group me-2">
+                <button class="btn btn-sm btn-outline-warning dropdown-toggle" data-bs-toggle="dropdown">
+                  <i class="bi bi-trash me-1"></i>清理消息
+                </button>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="#" onclick="clearTelegramMessages('all')">
+                    <i class="bi bi-trash me-2"></i>清理所有消息
+                  </a></li>
+                  <li><a class="dropdown-item" href="#" onclick="clearTelegramMessages('replied')">
+                    <i class="bi bi-check-circle me-2"></i>清理已回复消息
+                  </a></li>
+                  <li><a class="dropdown-item" href="#" onclick="clearTelegramMessages('ignored')">
+                    <i class="bi bi-x-circle me-2"></i>清理已忽略消息
+                  </a></li>
+                </ul>
+              </div>
+              <div class="btn-group me-2">
+                <button class="btn btn-sm btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+                  <i class="bi bi-gear me-1"></i>Webhook
+                </button>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="#" onclick="showWebhookConfig()">
+                    <i class="bi bi-link me-2"></i>配置Webhook
+                  </a></li>
+                  <li><a class="dropdown-item" href="#" onclick="checkWebhookStatus()">
+                    <i class="bi bi-info-circle me-2"></i>查看状态
+                  </a></li>
+                </ul>
+              </div>
               <button class="btn btn-sm btn-outline-success" onclick="testTelegramBot()">
                 <i class="bi bi-send me-1"></i>测试消息
               </button>
@@ -1714,6 +1798,8 @@
                       <option value="purple">紫色</option>
                       <option value="red">红色</option>
                       <option value="orange">橙色</option>
+                      <option value="sunset">🌅 日落橙紫渐变</option>
+                      <option value="ocean">🌊 海洋青绿渐变</option>
                     </select>
                   </div>
 
@@ -1837,14 +1923,9 @@
                         <i class="bi bi-key me-1"></i>
                         <strong>QQ回复消息API秘钥</strong>
                       </label>
-                      <div class="input-group">
-                        <input type="password" class="form-control" id="qqReplySecretKey"
-                               placeholder="请输入QQ回复消息API秘钥">
-                        <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('qqReplySecretKey')">
-                          <i class="bi bi-eye" id="qqReplySecretKey-icon"></i>
-                        </button>
-                      </div>
-                      <div class="form-text">
+                      <input type="password" class="form-control" id="qqReplySecretKey"
+                             placeholder="请输入QQ回复消息API秘钥">
+                      <div class="form-text mt-1">
                         <i class="bi bi-info-circle me-1"></i>
                         用于验证 <code>/send-message</code> API接口的访问权限，确保只有授权的应用可以发送消息
                       </div>
@@ -1858,12 +1939,15 @@
                         <i class="bi bi-tools me-1"></i>
                         <strong>操作</strong>
                       </label>
-                      <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-success" onclick="generateRandomSecretKey()">
-                          <i class="bi bi-arrow-clockwise me-1"></i>生成随机秘钥
+                      <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="togglePasswordVisibility('qqReplySecretKey')">
+                          <i class="bi bi-eye me-1" id="qqReplySecretKey-icon"></i>显示
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="updateQQReplySecretKey()">
-                          <i class="bi bi-check-circle me-1"></i>保存秘钥
+                        <button class="btn btn-sm btn-success" onclick="generateRandomSecretKey()">
+                          <i class="bi bi-arrow-clockwise me-1"></i>生成
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="updateQQReplySecretKey()">
+                          <i class="bi bi-check me-1"></i>保存
                         </button>
                       </div>
                       <div class="form-text mt-2">
@@ -3747,6 +3831,71 @@
           <button type="button" class="btn btn-danger" onclick="confirmDeleteRecord()">
             <i class="bi bi-trash"></i> 确认删除
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhook配置模态框 -->
+  <div class="modal fade" id="webhookConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-link text-info me-2"></i>
+            Telegram Webhook配置
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="webhookUrl" class="form-label">服务器域名</label>
+            <input type="url" class="form-control" id="webhookUrl"
+                   placeholder="https://your-domain.com">
+            <div class="form-text">
+              <i class="bi bi-info-circle me-1"></i>
+              只需输入您的服务器域名，系统会自动添加 <code>/telegram/webhook</code> 路径
+            </div>
+          </div>
+          <div class="alert alert-info">
+            <i class="bi bi-lightbulb me-2"></i>
+            <strong>配置说明：</strong>
+            <ul class="mb-0 mt-2">
+              <li>只需填写域名，如：<code>https://your-domain.com</code></li>
+              <li>系统会自动补全为：<code>https://your-domain.com/telegram/webhook</code></li>
+              <li>域名必须是HTTPS地址（本地测试可用HTTP）</li>
+              <li>确保您的服务器可以接收来自Telegram的POST请求</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="saveWebhookConfig()">
+            <i class="bi bi-check"></i> 保存配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhook状态模态框 -->
+  <div class="modal fade" id="webhookStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-info-circle text-info me-2"></i>
+            Webhook状态信息
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="webhookStatusContent">
+            <!-- 状态信息将在这里显示 -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
         </div>
       </div>
     </div>

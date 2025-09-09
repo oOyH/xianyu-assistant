@@ -12,6 +12,7 @@ import secrets
 import time
 import json
 import os
+import re
 import uvicorn
 import pandas as pd
 import io
@@ -39,6 +40,67 @@ TOKEN_EXPIRE_TIME = 24 * 60 * 60  # token过期时间：24小时
 
 # HTTP Bearer认证
 security = HTTPBearer(auto_error=False)
+
+# 登录失败记录
+LOGIN_ATTEMPTS = {}  # {ip: {'count': int, 'last_attempt': float, 'locked_until': float}}
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = 300  # 5分钟
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """验证密码强度"""
+    if len(password) < 8:
+        return False, "密码长度至少8位"
+
+    if not re.search(r'[a-z]', password):
+        return False, "密码必须包含小写字母"
+
+    if not re.search(r'[A-Z]', password):
+        return False, "密码必须包含大写字母"
+
+    if not re.search(r'\d', password):
+        return False, "密码必须包含数字"
+
+    if not re.search(r'[@$!%*?&]', password):
+        return False, "密码必须包含特殊字符(@$!%*?&)"
+
+    return True, "密码强度符合要求"
+
+def check_login_attempts(ip: str) -> tuple[bool, str]:
+    """检查登录尝试次数"""
+    current_time = time.time()
+
+    if ip in LOGIN_ATTEMPTS:
+        attempt_info = LOGIN_ATTEMPTS[ip]
+
+        # 检查是否在锁定期内
+        if 'locked_until' in attempt_info and current_time < attempt_info['locked_until']:
+            remaining = int(attempt_info['locked_until'] - current_time)
+            return False, f"账号已锁定，请{remaining}秒后重试"
+
+        # 重置过期的锁定
+        if 'locked_until' in attempt_info and current_time >= attempt_info['locked_until']:
+            LOGIN_ATTEMPTS[ip] = {'count': 0, 'last_attempt': current_time}
+
+    return True, ""
+
+def record_login_attempt(ip: str, success: bool):
+    """记录登录尝试"""
+    current_time = time.time()
+
+    if ip not in LOGIN_ATTEMPTS:
+        LOGIN_ATTEMPTS[ip] = {'count': 0, 'last_attempt': current_time}
+
+    if success:
+        # 登录成功，重置计数
+        LOGIN_ATTEMPTS[ip] = {'count': 0, 'last_attempt': current_time}
+    else:
+        # 登录失败，增加计数
+        LOGIN_ATTEMPTS[ip]['count'] += 1
+        LOGIN_ATTEMPTS[ip]['last_attempt'] = current_time
+
+        # 达到最大尝试次数，锁定账号
+        if LOGIN_ATTEMPTS[ip]['count'] >= MAX_LOGIN_ATTEMPTS:
+            LOGIN_ATTEMPTS[ip]['locked_until'] = current_time + LOCKOUT_DURATION
 
 # 扫码登录检查锁 - 防止并发处理同一个session
 qr_check_locks = defaultdict(lambda: asyncio.Lock())
@@ -116,6 +178,9 @@ class LoginResponse(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+    new_password: str
+
+class ForcePasswordChangeRequest(BaseModel):
     new_password: str
 
 
@@ -570,9 +635,19 @@ async def admin_page():
 @app.post('/login')
 async def login(request: LoginRequest):
     from db_manager import db_manager
+    from fastapi import Request
+
+    # 获取客户端IP（简化版，实际部署时需要考虑代理）
+    client_ip = "127.0.0.1"  # 在实际部署中应该从request中获取真实IP
 
     # 判断登录方式
     if request.username and request.password:
+        # 检查登录尝试次数
+        can_login, error_msg = check_login_attempts(client_ip)
+        if not can_login:
+            logger.warning(f"【{request.username}】登录被限制: {error_msg}")
+            raise HTTPException(status_code=429, detail=error_msg)
+
         # 用户名/密码登录
         logger.info(f"【{request.username}】尝试用户名登录")
 
@@ -580,6 +655,9 @@ async def login(request: LoginRequest):
         if db_manager.verify_user_password(request.username, request.password):
             user = db_manager.get_user_by_username(request.username)
             if user:
+                # 记录登录成功
+                record_login_attempt(client_ip, True)
+
                 # 生成token
                 token = generate_token()
                 SESSION_TOKENS[token] = {
@@ -603,6 +681,8 @@ async def login(request: LoginRequest):
                     is_admin=(user['username'] == ADMIN_USERNAME)
                 )
 
+        # 记录登录失败
+        record_login_attempt(client_ip, False)
         logger.warning(f"【{request.username}】登录失败：用户名或密码错误")
         return LoginResponse(
             success=False,
@@ -718,6 +798,11 @@ async def change_admin_password(request: ChangePasswordRequest, admin_user: Dict
         if not db_manager.verify_user_password('admin', request.current_password):
             return {"success": False, "message": "当前密码错误"}
 
+        # 验证新密码强度
+        is_strong, strength_msg = validate_password_strength(request.new_password)
+        if not is_strong:
+            return {"success": False, "message": f"密码强度不足: {strength_msg}"}
+
         # 更新密码（使用用户表更新）
         success = db_manager.update_user_password('admin', request.new_password)
 
@@ -729,6 +814,56 @@ async def change_admin_password(request: ChangePasswordRequest, admin_user: Dict
 
     except Exception as e:
         logger.error(f"修改管理员密码异常: {e}")
+        return {"success": False, "message": "系统错误"}
+
+# 强制密码修改接口（用于首次登录）
+@app.post('/force-change-password')
+async def force_change_password(request: ForcePasswordChangeRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    from db_manager import db_manager
+
+    try:
+        # 验证新密码强度
+        is_strong, strength_msg = validate_password_strength(request.new_password)
+        if not is_strong:
+            return {"success": False, "message": f"密码强度不足: {strength_msg}"}
+
+        # 更新密码
+        success = db_manager.update_user_password(current_user['username'], request.new_password)
+
+        if success:
+            logger.info(f"【{current_user['username']}#{current_user['user_id']}】强制密码修改成功")
+            return {"success": True, "message": "密码修改成功，请重新登录"}
+        else:
+            return {"success": False, "message": "密码修改失败"}
+
+    except Exception as e:
+        logger.error(f"强制密码修改异常: {e}")
+        return {"success": False, "message": "系统错误"}
+
+# 检查是否需要强制修改密码
+@app.get('/check-password-change-required')
+async def check_password_change_required(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """检查用户是否需要强制修改密码"""
+    try:
+        # 检查是否是使用默认密码的admin用户
+        if current_user['username'] == ADMIN_USERNAME:
+            # 验证是否还在使用默认密码
+            from db_manager import db_manager
+            if db_manager.verify_user_password(ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD):
+                return {
+                    "success": True,
+                    "password_change_required": True,
+                    "message": "检测到您正在使用默认密码，为了安全请立即修改密码"
+                }
+
+        return {
+            "success": True,
+            "password_change_required": False,
+            "message": "密码安全"
+        }
+
+    except Exception as e:
+        logger.error(f"检查密码修改需求异常: {e}")
         return {"success": False, "message": "系统错误"}
 
 
@@ -968,6 +1103,7 @@ class TelegramUpdate(BaseModel):
 class TelegramWebhookRequest(BaseModel):
     update_id: int
     message: Optional[Dict[str, Any]] = None
+    callback_query: Optional[Dict[str, Any]] = None
 
 class TelegramWebhookResponse(BaseModel):
     success: bool
@@ -990,7 +1126,7 @@ class TelegramConfigResponse(BaseModel):
 
 
 def verify_api_key(api_key: str) -> bool:
-    """验证API秘钥"""
+    """验证QQ回复API秘钥"""
     try:
         # 从系统设置中获取QQ回复消息秘钥
         from db_manager import db_manager
@@ -1002,9 +1138,27 @@ def verify_api_key(api_key: str) -> bool:
 
         return api_key == qq_secret_key
     except Exception as e:
-        logger.error(f"验证API秘钥时发生异常: {e}")
+        logger.error(f"验证QQ API秘钥时发生异常: {e}")
         # 异常情况下使用默认秘钥验证
         return api_key == API_SECRET_KEY
+
+
+def verify_telegram_api_key(api_key: str) -> bool:
+    """验证Telegram回复API秘钥"""
+    try:
+        # 从系统设置中获取Telegram回复消息秘钥
+        from db_manager import db_manager
+        telegram_secret_key = db_manager.get_system_setting('telegram_reply_secret_key')
+
+        # 如果系统设置中没有配置，使用默认值
+        if not telegram_secret_key:
+            telegram_secret_key = "xianyuvip2025"
+
+        return api_key == telegram_secret_key
+    except Exception as e:
+        logger.error(f"验证Telegram API秘钥时发生异常: {e}")
+        # 异常情况下使用默认秘钥验证
+        return api_key == "xianyuvip2025"
 
 
 @app.post('/send-message', response_model=SendMessageResponse)
@@ -1065,7 +1219,7 @@ async def send_message_api(request: SendMessageRequest):
                     message=f"参数 {param_name} 不能为空"
                 )
 
-        # 直接获取XianyuLive实例，跳过cookie_manager检查
+        # 获取XianyuLive实例
         from XianyuAutoAsync import XianyuLive
         live_instance = XianyuLive.get_instance(cleaned_cookie_id)
 
@@ -1100,10 +1254,101 @@ async def send_message_api(request: SendMessageRequest):
         )
 
     except Exception as e:
-        # 使用清理后的参数记录日志
-        cookie_id_for_log = clean_param(request.cookie_id) if 'clean_param' in locals() else request.cookie_id
-        to_user_id_for_log = clean_param(request.to_user_id) if 'clean_param' in locals() else request.to_user_id
-        logger.error(f"API发送消息异常: {cookie_id_for_log} -> {to_user_id_for_log}, 错误: {str(e)}")
+        # 记录异常日志
+        logger.error(f"API发送消息异常: {request.cookie_id} -> {request.to_user_id}, 错误: {str(e)}")
+        return SendMessageResponse(
+            success=False,
+            message=f"发送消息失败: {str(e)}"
+        )
+
+
+@app.post('/telegram/send-message', response_model=SendMessageResponse)
+async def telegram_send_message_api(request: SendMessageRequest):
+    """Telegram专用发送消息API接口（使用独立的Telegram秘钥验证）"""
+    try:
+        # 清理所有参数中的换行符
+        def clean_param(param_str):
+            """清理参数中的换行符"""
+            if isinstance(param_str, str):
+                return param_str.replace('\\n', '').replace('\n', '')
+            return param_str
+
+        # 清理所有参数
+        cleaned_api_key = clean_param(request.api_key)
+        cleaned_cookie_id = clean_param(request.cookie_id)
+        cleaned_chat_id = clean_param(request.chat_id)
+        cleaned_to_user_id = clean_param(request.to_user_id)
+        cleaned_message = clean_param(request.message)
+
+        # 验证API秘钥不能为空
+        if not cleaned_api_key:
+            logger.warning("Telegram API秘钥为空")
+            return SendMessageResponse(
+                success=False,
+                message="API秘钥不能为空"
+            )
+
+        # 验证Telegram专用API秘钥
+        if not verify_telegram_api_key(cleaned_api_key):
+            logger.warning(f"Telegram API秘钥验证失败: {cleaned_api_key}")
+            return SendMessageResponse(
+                success=False,
+                message="API秘钥验证失败"
+            )
+
+        # 验证必需参数不能为空
+        required_params = {
+            'cookie_id': cleaned_cookie_id,
+            'chat_id': cleaned_chat_id,
+            'to_user_id': cleaned_to_user_id,
+            'message': cleaned_message
+        }
+
+        for param_name, param_value in required_params.items():
+            if not param_value:
+                logger.warning(f"Telegram API必需参数 {param_name} 为空")
+                return SendMessageResponse(
+                    success=False,
+                    message=f"参数 {param_name} 不能为空"
+                )
+
+        # 获取XianyuLive实例
+        from XianyuAutoAsync import XianyuLive
+        live_instance = XianyuLive.get_instance(cleaned_cookie_id)
+
+        if not live_instance:
+            logger.warning(f"Telegram API账号实例不存在或未连接: {cleaned_cookie_id}")
+            return SendMessageResponse(
+                success=False,
+                message="账号实例不存在或未连接，请检查账号状态"
+            )
+
+        # 检查WebSocket连接状态
+        if not live_instance.ws or live_instance.ws.closed:
+            logger.warning(f"Telegram API账号WebSocket连接已断开: {cleaned_cookie_id}")
+            return SendMessageResponse(
+                success=False,
+                message="账号WebSocket连接已断开，请等待重连"
+            )
+
+        # 发送消息（使用清理后的所有参数）
+        await live_instance.send_msg(
+            live_instance.ws,
+            cleaned_chat_id,
+            cleaned_to_user_id,
+            cleaned_message
+        )
+
+        logger.info(f"Telegram API成功发送消息: {cleaned_cookie_id} -> {cleaned_to_user_id}, 内容: {cleaned_message[:50]}{'...' if len(cleaned_message) > 50 else ''}")
+
+        return SendMessageResponse(
+            success=True,
+            message="消息发送成功"
+        )
+
+    except Exception as e:
+        # 记录异常日志
+        logger.error(f"Telegram API发送消息异常: {request.cookie_id} -> {request.to_user_id}, 错误: {str(e)}")
         return SendMessageResponse(
             success=False,
             message=f"发送消息失败: {str(e)}"
@@ -1591,9 +1836,10 @@ async def reset_qr_cookie_refresh_cooldown(
         if not cookie_info:
             return {'success': False, 'message': '账号不存在'}
 
-        # 如果cookie_manager中有对应的实例，直接重置
-        if cookie_manager.manager and cookie_id in cookie_manager.manager.instances:
-            instance = cookie_manager.manager.instances[cookie_id]
+        # 如果有对应的实例，直接重置
+        from XianyuAutoAsync import XianyuLive
+        instance = XianyuLive.get_instance(cookie_id)
+        if instance:
             remaining_time_before = instance.get_qr_cookie_refresh_remaining_time()
             instance.reset_qr_cookie_refresh_flag()
 
@@ -1631,9 +1877,10 @@ async def get_qr_cookie_refresh_cooldown_status(
         if not cookie_info:
             return {'success': False, 'message': '账号不存在'}
 
-        # 如果cookie_manager中有对应的实例，获取冷却状态
-        if cookie_manager.manager and cookie_id in cookie_manager.manager.instances:
-            instance = cookie_manager.manager.instances[cookie_id]
+        # 如果有对应的实例，获取冷却状态
+        from XianyuAutoAsync import XianyuLive
+        instance = XianyuLive.get_instance(cookie_id)
+        if instance:
             remaining_time = instance.get_qr_cookie_refresh_remaining_time()
             cooldown_duration = instance.qr_cookie_refresh_cooldown
             last_refresh_time = instance.last_qr_cookie_refresh_time
@@ -5151,6 +5398,136 @@ def update_legacy_order_status(current_user: Dict[str, Any] = Depends(get_curren
         log_with_user('error', f"更新订单状态失败: {str(e)}", current_user)
         raise HTTPException(status_code=500, detail=f"更新订单状态失败: {str(e)}")
 
+class BatchDeleteOrdersRequest(BaseModel):
+    order_ids: List[str]
+
+@app.delete('/api/orders/batch')
+def batch_delete_orders(request: BatchDeleteOrdersRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """批量删除订单"""
+    try:
+        from db_manager import db_manager
+
+        if not request.order_ids:
+            raise HTTPException(status_code=400, detail="删除列表不能为空")
+
+        # 验证用户权限 - 只能删除自己账号下的订单
+        user_id = current_user['user_id']
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        # 验证每个订单是否属于当前用户
+        valid_order_ids = []
+        for order_id in request.order_ids:
+            # 检查订单是否属于用户的任一Cookie
+            order_belongs_to_user = False
+            for cookie_id in user_cookies.keys():
+                orders = db_manager.get_orders_by_cookie(cookie_id, limit=10000)
+                if any(order['order_id'] == order_id for order in orders):
+                    order_belongs_to_user = True
+                    break
+
+            if order_belongs_to_user:
+                valid_order_ids.append(order_id)
+
+        if not valid_order_ids:
+            raise HTTPException(status_code=403, detail="没有可删除的订单或无权限删除")
+
+        # 执行批量删除
+        success_count = 0
+        for order_id in valid_order_ids:
+            try:
+                # 使用管理员数据删除接口
+                success = db_manager.delete_table_record('orders', order_id)
+                if success:
+                    success_count += 1
+            except Exception as e:
+                logger.warning(f"删除订单 {order_id} 失败: {e}")
+
+        failed_count = len(valid_order_ids) - success_count
+
+        log_with_user('info', f"批量删除订单完成: 成功{success_count}个，失败{failed_count}个", current_user)
+
+        return {
+            "success": True,
+            "message": f"批量删除完成",
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_count": len(request.order_ids),
+            "valid_count": len(valid_order_ids)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_with_user('error', f"批量删除订单失败: {str(e)}", current_user)
+        raise HTTPException(status_code=500, detail=f"批量删除订单失败: {str(e)}")
+
+@app.get('/api/orders/export')
+def export_orders(format: str = 'csv', current_user: Dict[str, Any] = Depends(get_current_user)):
+    """导出订单数据"""
+    try:
+        from db_manager import db_manager
+        import csv
+        from io import StringIO
+
+        # 获取用户的所有订单
+        user_id = current_user['user_id']
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        all_orders = []
+        for cookie_id in user_cookies.keys():
+            orders = db_manager.get_orders_by_cookie(cookie_id, limit=10000)
+            for order in orders:
+                order['cookie_id'] = cookie_id
+                all_orders.append(order)
+
+        # 按创建时间排序
+        all_orders.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+        if format.lower() == 'csv':
+            # 生成CSV
+            output = StringIO()
+            if all_orders:
+                fieldnames = ['order_id', 'item_id', 'buyer_id', 'spec_name', 'spec_value',
+                             'quantity', 'amount', 'order_status', 'cookie_id', 'created_at', 'updated_at']
+                writer = csv.DictWriter(output, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for order in all_orders:
+                    # 只写入存在的字段
+                    row = {field: order.get(field, '') for field in fieldnames}
+                    writer.writerow(row)
+
+            csv_content = output.getvalue()
+            output.close()
+
+            # 返回CSV文件
+            from fastapi.responses import Response
+            return Response(
+                content=csv_content,
+                media_type='text/csv',
+                headers={
+                    'Content-Disposition': f'attachment; filename="orders_{int(time.time())}.csv"'
+                }
+            )
+
+        elif format.lower() == 'json':
+            # 返回JSON格式
+            return {
+                "success": True,
+                "data": all_orders,
+                "count": len(all_orders),
+                "export_time": time.time()
+            }
+
+        else:
+            raise HTTPException(status_code=400, detail="不支持的导出格式，支持: csv, json")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_with_user('error', f"导出订单数据失败: {str(e)}", current_user)
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+
 
 # ==================== Telegram Bot API ====================
 
@@ -5184,9 +5561,15 @@ def verify_telegram_webhook(request_data: dict) -> bool:
             return False
 
         # 检查是否有消息内容
-        if 'message' in request_data:
+        if 'message' in request_data and request_data['message']:
             message = request_data['message']
             if 'chat' not in message or 'from' not in message:
+                return False
+
+        # 检查是否有回调查询
+        if 'callback_query' in request_data and request_data['callback_query']:
+            callback_query = request_data['callback_query']
+            if 'id' not in callback_query or 'from' not in callback_query:
                 return False
 
         return True
@@ -5200,24 +5583,31 @@ async def test_telegram_bot(cookie_id: str, current_user: dict = Depends(get_cur
     try:
         logger.info(f"测试Telegram机器人连接: {cookie_id}")
 
-        # 获取用户的通知渠道配置
-        channels = db_manager.get_notification_channels()
+        # 检查cookie是否属于当前用户
+        user_id = current_user.get('user_id')
+        if not user_id:
+            return {"success": False, "message": "用户信息无效"}
+
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        if cookie_id not in user_cookies:
+            return {"success": False, "message": "无权限访问该Cookie"}
+
+        # 获取该账号的消息通知配置
+        account_notifications = db_manager.get_account_notifications(cookie_id)
         telegram_config = None
 
-        for channel in channels:
-            if (channel['user_id'] == current_user['user_id'] and
-                channel['type'] == 'telegram'):
+        for notification in account_notifications:
+            if notification['enabled'] and notification['channel_type'] == 'telegram':
                 try:
                     import json
-                    config = json.loads(channel['config'])
-                    # 这里可以添加更多的匹配逻辑，比如通过cookie_id关联
-                    telegram_config = config
+                    telegram_config = json.loads(notification['channel_config'])
                     break
                 except:
                     continue
 
         if not telegram_config:
-            return {"success": False, "message": "未找到Telegram配置"}
+            return {"success": False, "message": f"账号 {cookie_id} 未配置Telegram通知"}
 
         bot_token = telegram_config.get('bot_token')
         chat_id = telegram_config.get('chat_id')
@@ -5304,6 +5694,10 @@ async def telegram_webhook(request: TelegramWebhookRequest):
                 processed=False
             )
 
+        # 检查是否为回调查询
+        if hasattr(request, 'callback_query') and request.callback_query:
+            return await handle_telegram_callback(request.callback_query)
+
         # 检查是否有消息内容
         if not request.message:
             logger.debug("Telegram Webhook请求无消息内容，跳过处理")
@@ -5377,28 +5771,31 @@ async def telegram_webhook(request: TelegramWebhookRequest):
             processed=False
         )
 
-async def send_telegram_response(chat_id: int, text: str):
+async def send_telegram_response(chat_id: int, text: str) -> bool:
     """发送响应消息到Telegram"""
     try:
-        # 使用TelegramBotManager发送消息
-        try:
-            from telegram_bot_service import telegram_bot_manager
+        from telegram_bot_service import telegram_bot_manager
 
-            success = await telegram_bot_manager.send_message(chat_id, text)
-            if success:
-                logger.debug(f"Telegram响应发送成功: {chat_id}")
-            else:
-                logger.warning(f"Telegram响应发送失败: {chat_id}")
+        success = await telegram_bot_manager.send_message(chat_id, text)
+        if success:
+            logger.debug(f"Telegram响应发送成功: {chat_id}")
+            return True
+        else:
+            logger.warning(f"Telegram响应发送失败: {chat_id}")
+            # 如果主服务失败，使用fallback方法
+            return await send_telegram_response_fallback(chat_id, text)
 
-        except ImportError:
-            # 如果TelegramBotManager不可用，回退到原始方法
-            logger.warning("TelegramBotManager不可用，使用原始发送方法")
-            await send_telegram_response_fallback(chat_id, text)
-
+    except ImportError:
+        # 如果服务不可用，使用fallback方法
+        logger.warning("TelegramBotService不可用，使用fallback方法")
+        return await send_telegram_response_fallback(chat_id, text)
     except Exception as e:
         logger.error(f"发送Telegram响应异常: {e}")
+        import traceback
+        logger.error(f"异常详情: {traceback.format_exc()}")
+        return await send_telegram_response_fallback(chat_id, text)
 
-async def send_telegram_response_fallback(chat_id: int, text: str):
+async def send_telegram_response_fallback(chat_id: int, text: str) -> bool:
     """Telegram响应发送的回退方法"""
     try:
         # 获取Bot Token（从通知渠道配置中获取）
@@ -5418,7 +5815,7 @@ async def send_telegram_response_fallback(chat_id: int, text: str):
 
         if not bot_token:
             logger.warning(f"未找到Chat ID {chat_id} 对应的Bot Token")
-            return
+            return False
 
         # 发送消息到Telegram
         api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -5431,13 +5828,26 @@ async def send_telegram_response_fallback(chat_id: int, text: str):
         async with aiohttp.ClientSession() as session:
             timeout = aiohttp.ClientTimeout(total=10)
             async with session.post(api_url, json=data, timeout=timeout) as response:
+                response_data = await response.json() if response.content_type == 'application/json' else {}
+
                 if response.status == 200:
                     logger.debug(f"Telegram响应发送成功（回退方法）: {chat_id}")
+                    return True
                 else:
-                    logger.warning(f"Telegram响应发送失败（回退方法）: {response.status}")
+                    error_desc = response_data.get('description', '未知错误')
+                    logger.warning(f"Telegram响应发送失败（回退方法）: {response.status}, {error_desc}")
+
+                    # 特殊错误处理
+                    if response.status == 400 and 'parse entities' in error_desc.lower():
+                        logger.error(f"实体解析错误已修复，但仍然失败: {error_desc}")
+
+                    return False
 
     except Exception as e:
         logger.error(f"Telegram响应回退方法异常: {e}")
+        import traceback
+        logger.error(f"异常详情: {traceback.format_exc()}")
+        return False
 
 @app.get("/telegram/messages/{cookie_id}", response_model=TelegramMessageQueueResponse)
 async def get_telegram_messages(
@@ -5476,7 +5886,7 @@ async def get_telegram_messages(
 
         # 获取消息列表
         messages = db_manager.get_telegram_messages_by_chat(
-            telegram_chat_id, status, limit
+            telegram_chat_id, status or "pending", limit
         )
 
         # 过滤指定账号的消息
@@ -5496,6 +5906,188 @@ async def get_telegram_messages(
     except Exception as e:
         logger.error(f"获取Telegram消息队列失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取消息队列失败: {str(e)}")
+
+@app.delete("/telegram/messages/{cookie_id}")
+async def clear_telegram_messages(cookie_id: str, request: dict, current_user: dict = Depends(get_current_user)):
+    """清理Telegram消息"""
+    try:
+        # 检查cookie是否属于当前用户
+        user_id = current_user.get('user_id')
+        if not user_id:
+            raise HTTPException(status_code=401, detail="用户信息无效")
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        if cookie_id not in user_cookies:
+            raise HTTPException(status_code=403, detail="无权限访问该Cookie")
+
+        clear_type = request.get('type', 'all')  # all, pending, replied, ignored
+        message_ids = request.get('message_ids', [])  # 选择性删除的消息ID列表
+
+        # 获取telegram_chat_id
+        account_notifications = db_manager.get_account_notifications(cookie_id)
+        telegram_chat_id = None
+
+        for notification in account_notifications:
+            if notification['enabled'] and notification['channel_type'] == 'telegram':
+                try:
+                    import json
+                    config = json.loads(notification['channel_config'])
+                    telegram_chat_id = int(config.get('chat_id', 0))
+                    break
+                except:
+                    continue
+
+        if not telegram_chat_id:
+            return {"success": False, "message": "未找到Telegram配置"}
+
+        # 执行清理
+        if message_ids:
+            # 选择性删除
+            deleted_count = db_manager.delete_telegram_messages_by_ids(message_ids, telegram_chat_id)
+        else:
+            # 按状态删除
+            deleted_count = db_manager.delete_telegram_messages_by_status(telegram_chat_id, clear_type)
+
+        return {
+            "success": True,
+            "message": f"成功清理 {deleted_count} 条消息",
+            "deleted_count": deleted_count
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"清理Telegram消息失败: {e}")
+        return {"success": False, "message": f"清理失败: {str(e)}"}
+
+@app.post("/telegram/webhook/{cookie_id}")
+async def set_telegram_webhook(cookie_id: str, request: dict, current_user: dict = Depends(get_current_user)):
+    """设置Telegram Webhook"""
+    try:
+        # 检查cookie是否属于当前用户
+        user_id = current_user.get('user_id')
+        if not user_id:
+            return {"success": False, "message": "用户信息无效"}
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        if cookie_id not in user_cookies:
+            return {"success": False, "message": "无权限访问该Cookie"}
+
+        webhook_url = request.get('webhook_url', '').strip()
+        if not webhook_url:
+            return {"success": False, "message": "Webhook URL不能为空"}
+
+        # 智能处理Webhook URL
+        # 如果用户只输入了域名，自动添加 /telegram/webhook 路径
+        if not webhook_url.endswith('/telegram/webhook'):
+            # 移除末尾的斜杠
+            webhook_url = webhook_url.rstrip('/')
+            # 添加标准路径
+            webhook_url = f"{webhook_url}/telegram/webhook"
+
+        # 验证URL格式
+        import re
+        url_pattern = r'^https?://[^\s/$.?#].[^\s]*$'
+        if not re.match(url_pattern, webhook_url):
+            return {"success": False, "message": "Webhook URL格式无效"}
+
+        # 获取该账号的Telegram配置
+        account_notifications = db_manager.get_account_notifications(cookie_id)
+        bot_token = None
+
+        for notification in account_notifications:
+            if notification['enabled'] and notification['channel_type'] == 'telegram':
+                try:
+                    import json
+                    config = json.loads(notification['channel_config'])
+                    bot_token = config.get('bot_token')
+                    break
+                except:
+                    continue
+
+        if not bot_token:
+            return {"success": False, "message": f"账号 {cookie_id} 未配置Telegram Bot Token"}
+
+        # 调用Telegram API设置Webhook
+        import aiohttp
+        api_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json={"url": webhook_url}) as response:
+                result = await response.json()
+
+                if result.get('ok'):
+                    return {
+                        "success": True,
+                        "message": "Webhook设置成功",
+                        "webhook_url": webhook_url
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Webhook设置失败: {result.get('description', '未知错误')}"
+                    }
+
+    except Exception as e:
+        logger.error(f"设置Telegram Webhook失败: {e}")
+        return {"success": False, "message": f"设置失败: {str(e)}"}
+
+@app.get("/telegram/webhook/{cookie_id}")
+async def get_telegram_webhook(cookie_id: str, current_user: dict = Depends(get_current_user)):
+    """获取Telegram Webhook信息"""
+    try:
+        # 检查cookie是否属于当前用户
+        user_id = current_user.get('user_id')
+        if not user_id:
+            return {"success": False, "message": "用户信息无效"}
+        user_cookies = db_manager.get_all_cookies(user_id)
+
+        if cookie_id not in user_cookies:
+            return {"success": False, "message": "无权限访问该Cookie"}
+
+        # 获取该账号的Telegram配置
+        account_notifications = db_manager.get_account_notifications(cookie_id)
+        bot_token = None
+
+        for notification in account_notifications:
+            if notification['enabled'] and notification['channel_type'] == 'telegram':
+                try:
+                    import json
+                    config = json.loads(notification['channel_config'])
+                    bot_token = config.get('bot_token')
+                    break
+                except:
+                    continue
+
+        if not bot_token:
+            return {"success": False, "message": f"账号 {cookie_id} 未配置Telegram Bot Token"}
+
+        # 调用Telegram API获取Webhook信息
+        import aiohttp
+        api_url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(api_url) as response:
+                result = await response.json()
+
+                if result.get('ok'):
+                    webhook_info = result.get('result', {})
+                    return {
+                        "success": True,
+                        "webhook_info": webhook_info,
+                        "is_set": bool(webhook_info.get('url')),
+                        "webhook_url": webhook_info.get('url', ''),
+                        "pending_update_count": webhook_info.get('pending_update_count', 0)
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"获取Webhook信息失败: {result.get('description', '未知错误')}"
+                    }
+
+    except Exception as e:
+        logger.error(f"获取Telegram Webhook信息失败: {e}")
+        return {"success": False, "message": f"获取失败: {str(e)}"}
 
 @app.post("/telegram/config", response_model=TelegramConfigResponse)
 async def update_telegram_config(
@@ -5520,7 +6112,7 @@ async def update_telegram_config(
         # 构建配置JSON
         config_json = json.dumps({
             'bot_token': config.bot_token,
-            'chat_id': config.chat_id
+            'chat_id': str(chat_id_int)  # 使用验证后的chat_id_int
         })
 
         # 查找现有的Telegram通知渠道
@@ -5563,6 +6155,70 @@ async def update_telegram_config(
     except Exception as e:
         logger.error(f"更新Telegram配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"配置更新失败: {str(e)}")
+
+
+async def handle_telegram_callback(callback_query: dict) -> TelegramWebhookResponse:
+    """处理Telegram回调查询"""
+    try:
+        # 提取回调信息
+        callback_data = callback_query.get('data', '')
+        chat_id = callback_query.get('message', {}).get('chat', {}).get('id')
+
+        logger.info(f"处理回调: {callback_data} (Chat ID: {chat_id})")
+
+        # 使用专门的回调处理器
+        from telegram_callback_handler import telegram_callback_handler
+
+        # 构造回调查询对象（简化版）
+        class CallbackQuery:
+            def __init__(self, callback_query_dict):
+                self.data = callback_query_dict.get('data', '')
+                self.chat_id = callback_query_dict.get('message', {}).get('chat', {}).get('id')
+                self.message_id = callback_query_dict.get('message', {}).get('message_id')
+
+                # 创建message对象
+                class Message:
+                    def __init__(self, chat_id, message_id):
+                        self.chat_id = chat_id
+                        self.message_id = message_id
+
+                self.message = Message(self.chat_id, self.message_id)
+
+            async def edit_message_text(self, text):
+                """编辑消息文本"""
+                await send_telegram_response(self.chat_id, text)
+
+            async def answer(self):
+                """确认回调（空实现）"""
+                pass
+
+        query = CallbackQuery(callback_query)
+
+        # 直接调用具体的处理方法
+        if callback_data.startswith("reply_"):
+            await telegram_callback_handler._handle_reply_callback(query, callback_data)
+        elif callback_data.startswith("ai_"):
+            await telegram_callback_handler._handle_ai_callback(query, callback_data)
+        elif callback_data.startswith("ignore_"):
+            await telegram_callback_handler._handle_ignore_callback(query, callback_data)
+        elif callback_data.startswith("view_"):
+            await telegram_callback_handler._handle_view_callback(query, callback_data)
+        else:
+            await send_telegram_response(chat_id, "❌ 未知的操作")
+
+        return TelegramWebhookResponse(
+            success=True,
+            message="回调处理成功",
+            processed=True
+        )
+
+    except Exception as e:
+        logger.error(f"处理Telegram回调异常: {e}")
+        return TelegramWebhookResponse(
+            success=False,
+            message=f"回调处理异常: {str(e)}",
+            processed=False
+        )
 
 
 # 移除自动启动，由Start.py或手动启动

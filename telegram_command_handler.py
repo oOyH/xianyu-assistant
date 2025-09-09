@@ -35,13 +35,107 @@ class TelegramCommandHandler:
         self.processing_locks = {}
         
         logger.info("Telegram命令处理器初始化完成")
+
+    async def send_message_with_buttons(self, chat_id: int, text: str,
+                                      message_id: str = None) -> bool:
+        """发送带操作按钮的消息"""
+        try:
+            from telegram_bot_service import telegram_bot_manager
+
+            # 获取Bot Token
+            bot_token = await self._get_bot_token_for_chat(chat_id)
+            if not bot_token:
+                logger.error(f"未找到Chat ID {chat_id}对应的Bot Token")
+                return False
+
+            bot = await telegram_bot_manager.get_bot(bot_token)
+
+            if message_id:
+                # 为特定消息创建操作按钮
+                buttons = [
+                    [("✅ 回复", f"reply_{message_id}"), ("🤖 AI回复", f"ai_{message_id}")],
+                    [("🚫 忽略", f"ignore_{message_id}"), ("👁️ 查看", f"view_{message_id}")]
+                ]
+            else:
+                # 通用按钮
+                buttons = [
+                    [("📋 列表", "list"), ("📊 状态", "status")],
+                    [("❓ 帮助", "help")]
+                ]
+
+            async with bot:
+                return await bot.send_message_with_buttons(chat_id, text, buttons)
+
+        except Exception as e:
+            logger.error(f"发送按钮消息失败: {e}")
+            return False
+
+    async def _get_bot_token_for_chat(self, chat_id: int) -> Optional[str]:
+        """获取指定Chat ID对应的Bot Token"""
+        try:
+            # 从数据库获取Telegram配置
+            channels = self.db_manager.get_notification_channels()
+
+            for channel in channels:
+                if channel['type'] == 'telegram':
+                    import json
+                    config = json.loads(channel['config'])
+                    if str(config.get('chat_id')) == str(chat_id):
+                        return config.get('bot_token')
+
+            return None
+        except Exception as e:
+            logger.error(f"获取Bot Token失败: {e}")
+            return None
+
+    def _get_api_key(self) -> str:
+        """获取Telegram专用API密钥"""
+        try:
+            # 从系统设置中获取Telegram专用API密钥
+            api_key = self.db_manager.get_system_setting('telegram_reply_secret_key')
+            if api_key:
+                return api_key
+
+            # 如果没有设置，使用默认值
+            return "xianyuvip2025"
+
+        except Exception as e:
+            logger.error(f"获取Telegram API密钥失败: {e}")
+            return "xianyuvip2025"
+
+    async def _handle_cancel_reply(self, telegram_chat_id: int) -> str:
+        """处理取消回复命令"""
+        try:
+            from telegram_callback_handler import telegram_callback_handler
+
+            reply_state = telegram_callback_handler.get_user_reply_state(telegram_chat_id)
+            if reply_state:
+                telegram_callback_handler.clear_user_reply_state(telegram_chat_id)
+                return "✅ 已取消回复模式"
+            else:
+                return "ℹ️ 当前不在回复模式"
+
+        except Exception as e:
+            logger.error(f"处理取消回复异常: {e}")
+            return "❌ 取消回复失败"
     
     async def process_command(self, telegram_message: str, telegram_chat_id: int) -> str:
         """处理Telegram命令"""
         try:
             message = telegram_message.strip()
             logger.info(f"处理Telegram命令: {message} (Chat ID: {telegram_chat_id})")
-            
+
+            # 检查是否为取消命令
+            if message.lower() in ['/cancel', '取消']:
+                return await self._handle_cancel_reply(telegram_chat_id)
+
+            # 检查用户是否在回复模式
+            from telegram_callback_handler import telegram_callback_handler
+            reply_state = telegram_callback_handler.get_user_reply_state(telegram_chat_id)
+            if reply_state:
+                # 用户在回复模式，将消息作为回复内容处理
+                return await telegram_callback_handler.handle_direct_reply(telegram_chat_id, message)
+
             # 遍历命令模式，找到匹配的处理方法
             for pattern, handler in self.command_patterns.items():
                 match = re.match(pattern, message, re.IGNORECASE)
@@ -97,7 +191,9 @@ class TelegramCommandHandler:
                     message_id, 'replied', reply_text, 'telegram_reply'
                 )
 
-                return f"✅ 已回复消息 #{message_id}\n回复内容: {reply_text}"
+                # 获取买家昵称
+                buyer_name = original_message.get('send_user_name', '未知用户')
+                return f"✅ 回复已发送给闲鱼用户：{buyer_name}"
 
             finally:
                 # 释放处理锁
@@ -346,8 +442,10 @@ class TelegramCommandHandler:
                 self.db_manager.update_telegram_message_status(
                     message_id, 'replied', reply_content, 'manual'
                 )
-                
-                return f"✅ 已回复消息 #{message_id}\n回复内容: {reply_content}"
+
+                # 获取买家昵称
+                buyer_name = original_message.get('send_user_name', '未知用户')
+                return f"✅ 回复已发送给闲鱼用户：{buyer_name}"
                 
             finally:
                 # 释放处理锁
@@ -590,7 +688,9 @@ class TelegramCommandHandler:
                     message_id, 'replied', ai_reply, 'ai'
                 )
 
-                return f"✅ 已发送AI回复到消息 #{message_id}\n回复内容: {ai_reply}"
+                # 获取买家昵称
+                buyer_name = original_message.get('send_user_name', '未知用户')
+                return f"✅ 回复已发送给闲鱼用户：{buyer_name}"
 
             finally:
                 # 释放处理锁
@@ -604,43 +704,18 @@ class TelegramCommandHandler:
     def _get_help_message(self) -> str:
         """获取帮助信息"""
         return """
-🤖 **Telegram Bot 命令帮助**
+🤖 闲鱼自动回复助手
 
-**基础回复命令**:
-• `回复 #消息编号 内容` - 直接回复闲鱼消息
-• `AI #消息编号` - 生成AI智能回复建议
-• `确认 #消息编号` - 确认发送AI建议回复
-• `模板 #消息编号 模板名称` - 使用模板回复
-• `忽略 #消息编号` - 忽略指定消息
+💡 使用方法：
+• 点击消息下方按钮快速操作
+• 或发送命令：列表、状态、帮助
 
-**查看管理命令**:
-• `查看 #消息编号` - 查看消息详情
-• `列表` - 查看待处理消息列表
-• `状态` - 查看消息统计信息
-• `模板列表` - 查看可用回复模板
+📋 常用命令：
+• 列表 - 查看待处理消息
+• 状态 - 查看统计信息
+• 帮助 - 显示此信息
 
-**高级功能命令**:
-• `批量忽略 #消息1,#消息2` - 批量忽略多条消息
-• `搜索 关键词` - 搜索包含关键词的消息
-• `统计` - 查看7天消息统计信息
-• `统计 天数` - 查看指定天数统计信息
-• `帮助` - 显示此帮助信息
-
-**使用示例**:
-```
-回复 #A001_123456_001 您好，商品还在的
-AI #A001_123456_001
-确认 #A001_123456_001
-模板 #A001_123456_001 问候语
-批量忽略 #A001_123456_001,#A001_123456_002
-搜索 价格
-```
-
-💡 **使用流程**:
-1. 收到消息通知后，使用 `AI #消息编号` 获取AI建议
-2. 满意AI建议则使用 `确认 #消息编号` 发送
-3. 不满意则使用 `回复 #消息编号 自定义内容` 或 `模板 #消息编号 模板名`
-4. 不需要回复则使用 `忽略 #消息编号`
+✨ 推荐使用按钮操作，更快更方便！
 """
     
     def _get_time_ago(self, timestamp_str: str) -> str:
@@ -686,48 +761,37 @@ AI #A001_123456_001
             if not item_id:
                 item_id = "unknown"
 
-            # 获取XianyuAutoAsync实例并发送消息
+            # 通过API发送消息到闲鱼
             try:
-                # 导入cookie_manager来获取实例
-                import cookie_manager
+                import aiohttp
+                import json
 
-                logger.debug(f"检查cookie_manager状态...")
+                logger.info(f"通过API发送消息: {cookie_id} -> {send_user_id}")
 
-                if not cookie_manager.manager:
-                    logger.error("CookieManager未初始化")
-                    return False
+                # 获取API密钥
+                api_key = self._get_api_key()
 
-                if not hasattr(cookie_manager.manager, 'instances'):
-                    logger.error("CookieManager没有instances属性")
-                    return False
+                # 构建Telegram专用API请求
+                api_url = "http://localhost:8080/telegram/send-message"
+                payload = {
+                    "api_key": api_key,
+                    "cookie_id": cookie_id,
+                    "chat_id": original_message.get('chat_id', ''),
+                    "to_user_id": send_user_id,
+                    "message": reply_content
+                }
 
-                logger.debug(f"可用实例: {list(cookie_manager.manager.instances.keys())}")
+                timeout = aiohttp.ClientTimeout(total=10)
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(api_url, json=payload, timeout=timeout) as response:
+                        result = await response.json()
 
-                if cookie_id not in cookie_manager.manager.instances:
-                    logger.error(f"账号实例不存在: {cookie_id}")
-                    logger.debug(f"当前可用账号: {list(cookie_manager.manager.instances.keys())}")
-                    return False
-
-                instance = cookie_manager.manager.instances[cookie_id]
-                logger.debug(f"获取到实例: {type(instance)}")
-
-                # 检查实例是否有send_msg_once方法
-                if not hasattr(instance, 'send_msg_once'):
-                    logger.error(f"实例没有send_msg_once方法: {type(instance)}")
-                    return False
-
-                # 使用send_msg_once方法发送消息
-                logger.info(f"开始发送消息: {cookie_id} -> {send_user_id}, item_id: {item_id}")
-
-                result = await instance.send_msg_once(
-                    toid=send_user_id,
-                    item_id=item_id,
-                    text=reply_content
-                )
-
-                logger.info(f"消息发送结果: {result}")
-                logger.info(f"消息发送成功: {cookie_id} -> {send_user_id}")
-                return True
+                        if result.get('success'):
+                            logger.info(f"API消息发送成功: {cookie_id} -> {send_user_id}")
+                            return True
+                        else:
+                            logger.error(f"API消息发送失败: {result.get('message', '未知错误')}")
+                            return False
 
             except ImportError as e:
                 logger.error(f"无法导入cookie_manager: {e}")
@@ -861,7 +925,9 @@ AI #A001_123456_001
                 message_id, 'replied', template_reply, 'template'
             )
 
-            return f"✅ 已使用模板 '{template_name}' 回复消息 #{message_id}\n回复内容: {template_reply}"
+            # 获取买家昵称
+            buyer_name = original_message.get('send_user_name', '未知用户')
+            return f"✅ 回复已发送给闲鱼用户：{buyer_name}"
 
         except Exception as e:
             logger.error(f"处理模板回复命令异常: {e}")

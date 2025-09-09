@@ -96,6 +96,18 @@ body.dark-mode {
     --warning-color: var(--warning-color-dark);
 }
 
+/* 强制渐变背景生效 */
+body[style*="background-image"] {
+    background-color: transparent !important;
+}
+
+/* 确保渐变主题优先级 */
+body.gradient-theme {
+    background-attachment: fixed !important;
+    background-size: cover !important;
+    background-repeat: no-repeat !important;
+}
+
 /* 全局重置 */
 *, *::before, *::after {
     box-sizing: border-box;

@@ -60,13 +60,27 @@ class ThemeManager {
         switch (theme) {
             case 'light':
                 body.classList.remove('dark-mode');
+                this.updateBackgroundForMode(false);
                 break;
             case 'dark':
                 body.classList.add('dark-mode');
+                this.updateBackgroundForMode(true);
                 break;
             case 'system':
                 this.applySystemTheme();
                 break;
+        }
+    }
+
+    updateBackgroundForMode(isDark) {
+        // 获取当前的背景图片变量
+        const lightBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-image-light').trim();
+        const darkBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-image-dark').trim();
+
+        if (isDark && darkBg) {
+            document.body.style.backgroundImage = darkBg;
+        } else if (!isDark && lightBg) {
+            document.body.style.backgroundImage = lightBg;
         }
     }
 
@@ -76,8 +90,10 @@ class ThemeManager {
 
         if (prefersDark) {
             body.classList.add('dark-mode');
+            this.updateBackgroundForMode(true);
         } else {
             body.classList.remove('dark-mode');
+            this.updateBackgroundForMode(false);
         }
     }
 
@@ -1703,7 +1719,10 @@ function editCookieInline(id, currentValue) {
     cancelBtn.className = 'btn btn-sm btn-secondary';
     cancelBtn.title = '取消';
     cancelBtn.innerHTML = '<i class="bi bi-x"></i>';
-    cancelBtn.onclick = () => cancelCookieEdit(id);
+    cancelBtn.onclick = (e) => {
+        e.stopPropagation(); // 阻止事件冒泡
+        cancelCookieEdit(id);
+    };
 
     // 组装编辑界面
     editContainer.appendChild(input);
@@ -1808,6 +1827,29 @@ function cancelCookieEdit(id) {
 
     // 清理全局数据
     delete window.editingCookieData;
+
+    // 延迟重新绑定点击事件，避免立即触发
+    setTimeout(() => {
+        // 重新绑定Cookie值的点击复制事件
+        const cookieValueElement = cookieValueCell.querySelector('.cookie-value') || cookieValueCell;
+        if (cookieValueElement && !cookieValueElement.hasAttribute('data-click-bound')) {
+            cookieValueElement.style.cursor = 'pointer';
+            cookieValueElement.setAttribute('data-click-bound', 'true');
+            cookieValueElement.addEventListener('click', function(e) {
+                // 确保不是在编辑模式下
+                if (!this.classList.contains('editing')) {
+                    const cookieValue = this.textContent;
+                    if (cookieValue && cookieValue !== '未设置') {
+                        navigator.clipboard.writeText(cookieValue).then(() => {
+                            showToast('Cookie已复制到剪贴板', 'success');
+                        }).catch(() => {
+                            showToast('复制失败，请手动复制', 'error');
+                        });
+                    }
+                }
+            });
+        }
+    }, 100);
 }
 
 
@@ -5788,7 +5830,9 @@ const themeColors = {
     green: '#30d158',   // iOS绿色
     purple: '#af52de',  // iOS紫色
     red: '#ff3b30',     // iOS红色
-    orange: '#ff9500'   // iOS橙色
+    orange: '#ff9500',  // iOS橙色
+    sunset: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',  // 日落橙紫渐变
+    ocean: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 100%)'    // 海洋青绿渐变
 };
 
 // 加载用户设置
@@ -5818,19 +5862,106 @@ async function loadUserSettings() {
 function applyThemeColor(colorName) {
     const color = themeColors[colorName];
     if (color) {
-        // 更新浅色模式的主色调
-        document.documentElement.style.setProperty('--accent-color-light', color);
+        // 检查是否为渐变色
+        if (color.startsWith('linear-gradient')) {
+            // 处理渐变色
+            applyGradientTheme(colorName, color);
+        } else {
+            // 处理纯色
+            applySolidColorTheme(color);
+        }
+    }
+}
 
-        // 计算深色模式的主色调（稍微亮一点）
-        const darkColor = adjustBrightness(color, 15);
-        document.documentElement.style.setProperty('--accent-color-dark', darkColor);
+// 应用纯色主题
+function applySolidColorTheme(color) {
+    // 移除渐变主题类
+    document.body.classList.remove('gradient-theme');
 
-        // 保持向后兼容
-        document.documentElement.style.setProperty('--primary-color', color);
-        const hoverColor = adjustBrightness(color, -20);
-        document.documentElement.style.setProperty('--primary-hover', hoverColor);
-        const lightColor = adjustBrightness(color, 10);
-        document.documentElement.style.setProperty('--primary-light', lightColor);
+    // 更新浅色模式的主色调
+    document.documentElement.style.setProperty('--accent-color-light', color);
+
+    // 计算深色模式的主色调（稍微亮一点）
+    const darkColor = adjustBrightness(color, 15);
+    document.documentElement.style.setProperty('--accent-color-dark', darkColor);
+
+    // 保持向后兼容
+    document.documentElement.style.setProperty('--primary-color', color);
+    const hoverColor = adjustBrightness(color, -20);
+    document.documentElement.style.setProperty('--primary-hover', hoverColor);
+    const lightColor = adjustBrightness(color, 10);
+    document.documentElement.style.setProperty('--primary-light', lightColor);
+
+    // 重置背景为默认渐变
+    const defaultLightGradient = 'linear-gradient(120deg, #fdfbfb 0%, #f1f5f9 100%)';
+    const defaultDarkGradient = 'linear-gradient(120deg, #272B30 0%, #121212 100%)';
+
+    // 强制重置背景
+    document.body.style.removeProperty('background-image');
+    document.body.style.removeProperty('background-color');
+    document.body.style.setProperty('background-image', defaultLightGradient, 'important');
+    document.body.style.setProperty('background-attachment', 'fixed', 'important');
+    document.body.style.setProperty('background-size', 'cover', 'important');
+    document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
+
+    // 设置CSS变量
+    document.documentElement.style.setProperty('--bg-image-light', defaultLightGradient);
+    document.documentElement.style.setProperty('--bg-image-dark', defaultDarkGradient);
+    document.documentElement.style.setProperty('--bg-image', defaultLightGradient);
+}
+
+// 应用渐变主题
+function applyGradientTheme(colorName, gradient) {
+    // 添加渐变主题类
+    document.body.classList.add('gradient-theme');
+
+    if (colorName === 'sunset') {
+        // 日落橙紫渐变主题
+        const sunsetGradient = 'linear-gradient(135deg, #ff6b6b 0%, #feca57 50%, #ff9ff3 100%)';
+        const sunsetDarkGradient = 'linear-gradient(135deg, #2d1b1b 0%, #3d1a1a 50%, #2d1b2d 100%)';
+
+        // 清除背景色，强制设置背景图
+        document.body.style.setProperty('background-color', 'transparent', 'important');
+        document.body.style.setProperty('background-image', sunsetGradient, 'important');
+        document.body.style.setProperty('background-attachment', 'fixed', 'important');
+        document.body.style.setProperty('background-size', 'cover', 'important');
+        document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
+
+        // 设置CSS变量
+        document.documentElement.style.setProperty('--bg-image', sunsetGradient);
+        document.documentElement.style.setProperty('--bg-image-light', sunsetGradient);
+        document.documentElement.style.setProperty('--bg-image-dark', sunsetDarkGradient);
+
+        // 主色调
+        document.documentElement.style.setProperty('--accent-color-light', '#ea580c');
+        document.documentElement.style.setProperty('--accent-color-dark', '#f56565');
+        document.documentElement.style.setProperty('--primary-color', '#ea580c');
+        document.documentElement.style.setProperty('--primary-hover', '#dc2626');
+        document.documentElement.style.setProperty('--primary-light', '#f97316');
+
+    } else if (colorName === 'ocean') {
+        // 海洋青绿渐变主题
+        const oceanGradient = 'linear-gradient(135deg, #74b9ff 0%, #00cec9 50%, #55a3ff 100%)';
+        const oceanDarkGradient = 'linear-gradient(135deg, #1a2e2a 0%, #1e3a3a 50%, #134e4a 100%)';
+
+        // 清除背景色，强制设置背景图
+        document.body.style.setProperty('background-color', 'transparent', 'important');
+        document.body.style.setProperty('background-image', oceanGradient, 'important');
+        document.body.style.setProperty('background-attachment', 'fixed', 'important');
+        document.body.style.setProperty('background-size', 'cover', 'important');
+        document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
+
+        // 设置CSS变量
+        document.documentElement.style.setProperty('--bg-image', oceanGradient);
+        document.documentElement.style.setProperty('--bg-image-light', oceanGradient);
+        document.documentElement.style.setProperty('--bg-image-dark', oceanDarkGradient);
+
+        // 主色调
+        document.documentElement.style.setProperty('--accent-color-light', '#059669');
+        document.documentElement.style.setProperty('--accent-color-dark', '#10b981');
+        document.documentElement.style.setProperty('--primary-color', '#059669');
+        document.documentElement.style.setProperty('--primary-hover', '#047857');
+        document.documentElement.style.setProperty('--primary-light', '#10b981');
     }
 }
 
@@ -5848,6 +5979,16 @@ function adjustBrightness(hex, percent) {
 
 // 主题表单提交处理
 document.addEventListener('DOMContentLoaded', function() {
+    // 主题颜色选择器直接监听
+    const themeColorSelect = document.getElementById('themeColor');
+    if (themeColorSelect) {
+        themeColorSelect.addEventListener('change', function(e) {
+            const selectedColor = e.target.value;
+            applyThemeColor(selectedColor);
+            showToast(`已切换到${selectedColor}主题`, 'success');
+        });
+    }
+
     const themeForm = document.getElementById('themeForm');
     if (themeForm) {
     themeForm.addEventListener('submit', async function(e) {
@@ -7933,13 +8074,68 @@ async function importKeywords() {
 // 切换手动输入表单显示/隐藏
 function toggleManualInput() {
     const manualForm = document.getElementById('manualInputForm');
+    const manualCard = document.querySelector('.login-method-card[onclick*="toggleManualInput"]');
+
     if (manualForm.style.display === 'none') {
-    manualForm.style.display = 'block';
-    // 清空表单
-    document.getElementById('addForm').reset();
+        manualForm.style.display = 'block';
+        // 添加选中状态
+        if (manualCard) {
+            manualCard.classList.add('selected');
+        }
+        // 清空表单
+        document.getElementById('addForm').reset();
+        // 聚焦到第一个输入框
+        setTimeout(() => {
+            const firstInput = document.getElementById('cookieId');
+            if (firstInput) firstInput.focus();
+        }, 100);
     } else {
-    manualForm.style.display = 'none';
+        manualForm.style.display = 'none';
+        // 移除选中状态
+        if (manualCard) {
+            manualCard.classList.remove('selected');
+        }
     }
+}
+
+// 增强扫码登录函数
+function showQRCodeLogin() {
+    // 添加卡片选中效果
+    const qrCard = document.querySelector('.login-method-card[onclick*="showQRCodeLogin"]');
+    if (qrCard) {
+        qrCard.classList.add('selected');
+        // 延迟移除选中状态
+        setTimeout(() => {
+            qrCard.classList.remove('selected');
+        }, 300);
+    }
+
+    const modalElement = document.getElementById('qrCodeLoginModal');
+    const modal = new bootstrap.Modal(modalElement);
+
+    // 先清理之前可能存在的定时器
+    clearQRCodeCheck();
+
+    modal.show();
+
+    // 移除之前的事件监听器，避免重复绑定
+    modalElement.removeEventListener('shown.bs.modal', handleModalShown);
+    modalElement.removeEventListener('hidden.bs.modal', handleModalHidden);
+
+    // 重新绑定事件监听器
+    modalElement.addEventListener('shown.bs.modal', handleModalShown);
+    modalElement.addEventListener('hidden.bs.modal', handleModalHidden);
+}
+
+// 模态框显示事件处理器
+function handleModalShown() {
+    generateQRCode();
+}
+
+// 模态框隐藏事件处理器
+function handleModalHidden() {
+    clearQRCodeCheck();
+    console.log('二维码登录模态框已关闭，已清理所有定时器和会话');
 }
 
 // ========================= 扫码登录相关函数 =========================
@@ -7947,21 +8143,7 @@ function toggleManualInput() {
 let qrCodeCheckInterval = null;
 let qrCodeSessionId = null;
 
-// 显示扫码登录模态框
-function showQRCodeLogin() {
-    const modal = new bootstrap.Modal(document.getElementById('qrCodeLoginModal'));
-    modal.show();
 
-    // 模态框显示后生成二维码
-    modal._element.addEventListener('shown.bs.modal', function () {
-    generateQRCode();
-    });
-
-    // 模态框关闭时清理定时器
-    modal._element.addEventListener('hidden.bs.modal', function () {
-    clearQRCodeCheck();
-    });
-}
 
 // 刷新二维码（兼容旧函数名）
 async function refreshQRCode() {
@@ -8210,11 +8392,24 @@ function handleQRCodeSuccess(data) {
 
 // 清理二维码检查
 function clearQRCodeCheck() {
+    // 清理定时器
     if (qrCodeCheckInterval) {
-    clearInterval(qrCodeCheckInterval);
-    qrCodeCheckInterval = null;
+        clearInterval(qrCodeCheckInterval);
+        qrCodeCheckInterval = null;
+        console.log('已清理二维码状态检查定时器');
     }
-    qrCodeSessionId = null;
+
+    // 清理会话ID
+    if (qrCodeSessionId) {
+        console.log('已清理二维码会话ID:', qrCodeSessionId);
+        qrCodeSessionId = null;
+    }
+
+    // 重置UI状态
+    const statusSpinner = document.getElementById('statusSpinner');
+    const statusText = document.getElementById('statusText');
+    if (statusSpinner) statusSpinner.style.display = 'none';
+    if (statusText) statusText.textContent = '';
 }
 
 // 刷新二维码
@@ -9368,20 +9563,14 @@ function createOrderRow(order) {
             <td>
                 <input type="checkbox" class="order-checkbox" value="${order.order_id}">
             </td>
-            <td>
-                <span class="text-truncate d-inline-block" style="max-width: 120px;" title="${order.order_id}">
-                    ${order.order_id}
-                </span>
+            <td title="${order.order_id}">
+                ${order.order_id}
             </td>
-            <td>
-                <span class="text-truncate d-inline-block" style="max-width: 100px;" title="${order.item_id || ''}">
-                    ${order.item_id || '-'}
-                </span>
+            <td title="${order.item_id || ''}">
+                ${order.item_id || '-'}
             </td>
-            <td>
-                <span class="text-truncate d-inline-block" style="max-width: 80px;" title="${order.buyer_id || ''}">
-                    ${order.buyer_id || '-'}
-                </span>
+            <td title="${order.buyer_id || ''}">
+                ${order.buyer_id || '-'}
             </td>
             <td>
                 ${order.spec_name && order.spec_value ?
@@ -9396,10 +9585,8 @@ function createOrderRow(order) {
             <td>
                 <span class="badge ${statusClass}">${statusText}</span>
             </td>
-            <td>
-                <span class="text-truncate d-inline-block" style="max-width: 80px;" title="${order.cookie_id || ''}">
-                    ${order.cookie_id || '-'}
-                </span>
+            <td title="${order.cookie_id || ''}">
+                ${order.cookie_id || '-'}
             </td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
@@ -9767,56 +9954,93 @@ async function deleteOrder(orderId) {
     }
 }
 
-// 批量删除订单
-async function batchDeleteOrders() {
-    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
-    if (checkboxes.length === 0) {
-        showToast('请先选择要删除的订单', 'warning');
-        return;
-    }
-
-    const orderIds = Array.from(checkboxes).map(cb => cb.value);
-    const confirmed = confirm(`确定要删除选中的 ${orderIds.length} 个订单吗？\n\n此操作不可撤销！`);
-
-    if (!confirmed) return;
-
+// 批量删除选中的订单
+async function batchDeleteSelectedOrders() {
     try {
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const orderId of orderIds) {
-            try {
-                const response = await fetch(`${apiBase}/admin/data/orders/delete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({ record_id: orderId })
-                });
-
-                if (response.ok) {
-                    successCount++;
-                } else {
-                    failCount++;
-                }
-            } catch (error) {
-                failCount++;
-            }
+        const selectedOrders = getSelectedOrders();
+        if (selectedOrders.length === 0) {
+            showToast('请先选择要删除的订单', 'warning');
+            return;
         }
 
-        if (successCount > 0) {
-            showToast(`成功删除 ${successCount} 个订单${failCount > 0 ? `，${failCount} 个失败` : ''}`,
-                     failCount > 0 ? 'warning' : 'success');
+        const confirmed = confirm(`确定要删除选中的 ${selectedOrders.length} 个订单吗？\n\n此操作不可撤销！`);
+        if (!confirmed) {
+            return;
+        }
+
+        const response = await fetch(`${apiBase}/api/orders/batch`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                order_ids: selectedOrders
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`批量删除完成：成功 ${result.success_count} 个，失败 ${result.failed_count} 个`, 'success');
+            // 刷新列表
             await refreshOrdersData();
+            // 重置选择状态
+            document.getElementById('selectAllOrders').checked = false;
         } else {
-            showToast('批量删除失败', 'danger');
+            showToast(`批量删除失败: ${result.message}`, 'danger');
         }
-
     } catch (error) {
         console.error('批量删除订单失败:', error);
         showToast('批量删除订单失败', 'danger');
     }
+}
+
+// 获取选中的订单ID列表
+function getSelectedOrders() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// 导出订单数据
+async function exportOrders(format = 'csv') {
+    try {
+        const response = await fetch(`${apiBase}/api/orders/export?format=${format}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            if (format === 'csv') {
+                // 下载CSV文件
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `orders_${new Date().getTime()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast('订单数据导出成功', 'success');
+            } else {
+                // JSON格式直接显示结果
+                const result = await response.json();
+                showToast(`导出完成：共 ${result.count} 条记录`, 'success');
+            }
+        } else {
+            const error = await response.text();
+            showToast(`导出失败: ${error}`, 'danger');
+        }
+    } catch (error) {
+        console.error('导出订单失败:', error);
+        showToast('导出订单失败', 'danger');
+    }
+}
+
+// 批量删除订单（兼容旧的函数名）
+async function batchDeleteOrders() {
+    await batchDeleteSelectedOrders();
 }
 
 // 切换全选订单
@@ -10105,14 +10329,14 @@ async function refreshUsers() {
 // 切换密码可见性
 function togglePasswordVisibility(inputId) {
     const input = document.getElementById(inputId);
-    const icon = document.getElementById(inputId + '-icon');
+    const button = event.target.closest('button'); // 获取被点击的按钮
 
     if (input.type === 'password') {
         input.type = 'text';
-        icon.className = 'bi bi-eye-slash';
+        button.innerHTML = '<i class="bi bi-eye-slash me-1"></i>隐藏';
     } else {
         input.type = 'password';
-        icon.className = 'bi bi-eye';
+        button.innerHTML = '<i class="bi bi-eye me-1"></i>显示';
     }
 }
 
@@ -11896,10 +12120,295 @@ async function testTelegramBot() {
     }
 }
 
+// 清理Telegram消息
+async function clearTelegramMessages(type) {
+    const accountSelect = document.getElementById('telegramAccountSelect');
+    const selectedAccount = accountSelect.value;
+
+    if (!selectedAccount) {
+        showToast('请先选择账号', 'warning');
+        return;
+    }
+
+    const typeNames = {
+        'all': '所有消息',
+        'replied': '已回复消息',
+        'ignored': '已忽略消息',
+        'pending': '待处理消息'
+    };
+
+    if (!confirm(`确定要清理 ${typeNames[type] || type} 吗？此操作不可撤销！`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/telegram/messages/${selectedAccount}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ type: type })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`成功清理 ${data.deleted_count} 条消息`, 'success');
+            loadTelegramMessages(); // 重新加载消息列表
+        } else {
+            showToast('清理失败: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('清理Telegram消息失败:', error);
+        showToast('清理失败: ' + error.message, 'danger');
+    }
+}
+
+// 显示Webhook配置模态框
+function showWebhookConfig() {
+    const modal = new bootstrap.Modal(document.getElementById('webhookConfigModal'));
+    modal.show();
+}
+
+// 保存Webhook配置
+async function saveWebhookConfig() {
+    const accountSelect = document.getElementById('telegramAccountSelect');
+    const selectedAccount = accountSelect.value;
+    const webhookUrl = document.getElementById('webhookUrl').value.trim();
+
+    if (!selectedAccount) {
+        showToast('请先选择账号', 'warning');
+        return;
+    }
+
+    if (!webhookUrl) {
+        showToast('请输入Webhook URL', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/telegram/webhook/${selectedAccount}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ webhook_url: webhookUrl })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Webhook配置成功', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('webhookConfigModal')).hide();
+            document.getElementById('webhookUrl').value = '';
+        } else {
+            showToast('配置失败: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('配置Webhook失败:', error);
+        showToast('配置失败: ' + error.message, 'danger');
+    }
+}
+
+// 查看Webhook状态
+async function checkWebhookStatus() {
+    const accountSelect = document.getElementById('telegramAccountSelect');
+    const selectedAccount = accountSelect.value;
+
+    if (!selectedAccount) {
+        showToast('请先选择账号', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/telegram/webhook/${selectedAccount}`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const webhookInfo = data.webhook_info;
+            const statusContent = document.getElementById('webhookStatusContent');
+
+            statusContent.innerHTML = `
+                <div class="row">
+                    <div class="col-sm-4"><strong>状态：</strong></div>
+                    <div class="col-sm-8">
+                        <span class="badge ${data.is_set ? 'bg-success' : 'bg-secondary'}">
+                            ${data.is_set ? '已设置' : '未设置'}
+                        </span>
+                    </div>
+                </div>
+                ${data.is_set ? `
+                <div class="row mt-2">
+                    <div class="col-sm-4"><strong>Webhook URL：</strong></div>
+                    <div class="col-sm-8">
+                        <code>${data.webhook_url}</code>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-sm-4"><strong>待处理更新：</strong></div>
+                    <div class="col-sm-8">
+                        <span class="badge ${data.pending_update_count > 0 ? 'bg-warning' : 'bg-success'}">
+                            ${data.pending_update_count} 条
+                        </span>
+                    </div>
+                </div>
+                ` : ''}
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    ${data.is_set ?
+                        'Webhook已配置，用户点击消息按钮时会发送回调到指定地址。' :
+                        '未配置Webhook，用户无法通过按钮与机器人交互。'
+                    }
+                </div>
+            `;
+
+            const modal = new bootstrap.Modal(document.getElementById('webhookStatusModal'));
+            modal.show();
+        } else {
+            showToast('获取状态失败: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('获取Webhook状态失败:', error);
+        showToast('获取状态失败: ' + error.message, 'danger');
+    }
+}
+
+// 保存Telegram API密钥
+async function saveTelegramApiKey() {
+    const apiKey = document.getElementById('telegramApiKey').value.trim();
+
+    if (!apiKey) {
+        showToast('请输入API密钥', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/system-settings/telegram_reply_secret_key', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                key: 'telegram_reply_secret_key',
+                value: apiKey,
+                description: 'Telegram回复消息API密钥'
+            })
+        });
+
+        if (response.ok) {
+            showToast('Telegram API密钥保存成功', 'success');
+            // 保存成功后，显示保存的密钥（临时显示3秒）
+            const input = document.getElementById('telegramApiKey');
+            const toggleButtons = document.querySelectorAll('button[onclick="toggleTelegramApiKeyVisibility()"]');
+            const toggleButton = toggleButtons[0]; // 获取显示按钮
+
+            if (input.type === 'password' && toggleButton) {
+                input.type = 'text';
+                toggleButton.innerHTML = '<i class="bi bi-eye-slash me-1"></i>隐藏';
+                // 3秒后自动隐藏
+                setTimeout(() => {
+                    input.type = 'password';
+                    toggleButton.innerHTML = '<i class="bi bi-eye me-1"></i>显示';
+                }, 3000);
+            }
+        } else {
+            const errorData = await response.json();
+            showToast('保存失败: ' + (errorData.detail || '未知错误'), 'danger');
+        }
+    } catch (error) {
+        console.error('保存Telegram API密钥失败:', error);
+        showToast('保存失败: ' + error.message, 'danger');
+    }
+}
+
+// 加载Telegram API密钥
+async function loadTelegramApiKey() {
+    try {
+        const response = await fetch('/system-settings', {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            const settings = await response.json();
+            const telegramApiKey = settings['telegram_reply_secret_key'];
+
+            if (telegramApiKey) {
+                document.getElementById('telegramApiKey').value = telegramApiKey;
+                showToast('Telegram API密钥加载成功', 'success');
+            } else {
+                document.getElementById('telegramApiKey').value = '';
+                showToast('未找到已保存的Telegram API密钥', 'info');
+            }
+        } else {
+            document.getElementById('telegramApiKey').value = '';
+            showToast('加载Telegram API密钥失败', 'warning');
+        }
+    } catch (error) {
+        console.error('加载Telegram API密钥失败:', error);
+        showToast('加载失败: ' + error.message, 'danger');
+    }
+}
+
+// 切换Telegram API密钥显示/隐藏
+function toggleTelegramApiKeyVisibility() {
+    const input = document.getElementById('telegramApiKey');
+    const button = event.target.closest('button'); // 获取被点击的按钮
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.innerHTML = '<i class="bi bi-eye-slash me-1"></i>隐藏';
+    } else {
+        input.type = 'password';
+        button.innerHTML = '<i class="bi bi-eye me-1"></i>显示';
+    }
+}
+
+// 重置Telegram API密钥为默认值
+function resetTelegramApiKey() {
+    if (confirm('确定要重置为默认API密钥吗？')) {
+        document.getElementById('telegramApiKey').value = 'xianyu_api_secret_2024';
+        showToast('已重置为默认API密钥', 'info');
+    }
+}
+
 // 初始化Telegram消息页面
 function initTelegramMessagesPage() {
     // 加载账号列表
     loadAccountsForTelegram();
+    // 自动加载API密钥（静默加载，不显示提示）
+    loadTelegramApiKeySilently();
+}
+
+// 静默加载Telegram API密钥（不显示成功提示）
+async function loadTelegramApiKeySilently() {
+    try {
+        const response = await fetch('/system-settings', {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.ok) {
+            const settings = await response.json();
+            const telegramApiKey = settings['telegram_reply_secret_key'];
+
+            if (telegramApiKey) {
+                document.getElementById('telegramApiKey').value = telegramApiKey;
+            }
+        }
+    } catch (error) {
+        console.error('静默加载Telegram API密钥失败:', error);
+    }
 }
 
 // 为Telegram页面加载账号列表
@@ -11941,6 +12450,18 @@ async function loadAccountsForTelegram() {
                 option.textContent = `${account.id}${account.remark ? ' (' + account.remark + ')' : ''}`;
                 accountSelect.appendChild(option);
             });
+
+            // 默认选择第一个账号
+            if (data.length > 0) {
+                accountSelect.value = data[0].id;
+                console.log(`默认选择第一个账号: ${data[0].id}`);
+
+                // 自动加载该账号的消息
+                setTimeout(() => {
+                    loadTelegramMessages();
+                }, 100);
+            }
+
             console.log('账号选项添加完成');
         } else {
             console.log('没有找到账号数据');
@@ -11951,5 +12472,30 @@ async function loadAccountsForTelegram() {
         showToast('加载账号列表失败: ' + error.message, 'danger');
     }
 }
+
+// 页面卸载时清理所有定时器和资源
+window.addEventListener('beforeunload', function() {
+    // 清理二维码相关定时器
+    clearQRCodeCheck();
+
+    // 清理其他可能的定时器
+    if (window.dashboardUpdateInterval) {
+        clearInterval(window.dashboardUpdateInterval);
+    }
+
+    console.log('页面卸载，已清理所有定时器和资源');
+});
+
+// 页面隐藏时也清理资源（用户切换标签页等）
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        // 页面隐藏时暂停二维码检查，避免无用请求
+        if (qrCodeCheckInterval) {
+            console.log('页面隐藏，暂停二维码状态检查');
+            clearInterval(qrCodeCheckInterval);
+            qrCodeCheckInterval = null;
+        }
+    }
+});
 
 

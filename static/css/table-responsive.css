@@ -18,6 +18,85 @@
 }
 
 /* ================================
+   卡券表格名称列优化（全局）
+   ================================ */
+/* 表头保持不换行 */
+#cardsTableBody th:first-child {
+  white-space: nowrap !important;
+  min-width: 150px;
+}
+
+/* 表格内容允许换行 */
+#cardsTableBody td:first-child {
+  white-space: normal !important;
+  min-width: 150px;
+  max-width: 250px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+#cardsTableBody td:first-child .fw-bold {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+#cardsTableBody td:first-child small {
+  display: block;
+  line-height: 1.3;
+}
+
+/* ================================
+   全局操作列居中显示
+   ================================ */
+.table th:last-child,
+.table td:last-child {
+  text-align: center !important;
+}
+
+/* 操作按钮组居中 */
+.table .btn-group {
+  justify-content: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* ================================
+   订单管理表格优化
+   ================================ */
+/* 订单表格统一字体样式 */
+#ordersTableBody td {
+  font-family: var(--bs-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0.75rem 0.5rem;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* 移除特殊样式，保持统一 */
+
+/* 订单表格行高优化 */
+#ordersTableBody tr {
+  height: auto;
+  min-height: 60px;
+}
+
+/* 已在上面统一定义，移除重复 */
+
+/* 订单表格表头优化 */
+#orders-section .table thead th {
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 1rem 0.5rem;
+}
+
+/* ================================
    移动端表格优化
    ================================ */
 @media (max-width: 767.98px) {
@@ -40,6 +119,14 @@
     padding: 0.5rem 0.25rem;
     vertical-align: middle;
     white-space: nowrap;
+  }
+
+  /* 卡券名称列允许换行，避免竖向显示 */
+  .table td:first-child {
+    white-space: normal;
+    min-width: 120px;
+    max-width: 200px;
+    word-break: break-word;
   }
   
   .table th {

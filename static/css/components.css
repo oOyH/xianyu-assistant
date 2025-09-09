@@ -369,7 +369,7 @@ textarea.form-control {
 }
 
 .theme-mode-selector button i {
-  font-size: 1.25rem;
+  font-size: 1rem;
 }
 
 .theme-mode-selector button span {
@@ -794,6 +794,33 @@ textarea.form-control {
 /* 确保主题模式选择器正常显示 */
 .theme-mode-selector {
   z-index: 1 !important;
+}
+
+/* 主题颜色选择器样式优化 */
+#themeColor {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+#themeColor option {
+  background: var(--glass-bg);
+  color: var(--text-color);
+  padding: 0.5rem;
+}
+
+/* 渐变主题选项特殊样式 */
+#themeColor option[value="sunset"] {
+  background: linear-gradient(90deg, #ff9a9e 0%, #fecfef 100%);
+  color: #7c2d12;
+  font-weight: 600;
+}
+
+#themeColor option[value="ocean"] {
+  background: linear-gradient(90deg, #a7f3d0 0%, #34d399 100%);
+  color: #064e3b;
+  font-weight: 600;
 }
 
 /* 旧的重复样式已移除，使用上面的统一outline按钮样式 */
