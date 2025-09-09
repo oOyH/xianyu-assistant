@@ -386,3 +386,32 @@ systemd/
 archive/
 old/
 deprecated/
+
+# ==================== 统计服务相关 ====================
+# 统计配置文件
+stats_client_config.json
+stats_config.json
+token.txt
+
+# 统计数据库
+user_stats.db
+stats.db
+xianyu_assistant_stats.db
+
+# 调试和测试文件
+debug_stats.py
+test_stats.py
+simple_stats_server.py
+enhanced_stats_server.py
+
+# 旧统计模块（已移除）
+# usage_statistics.py - 现在是主要统计模块
+stats_config.py
+stats_db_manager.py
+stats_logger.py
+stats_monitoring.py
+
+# 统计服务日志
+stats_server.log
+stats_server_errors.log
+stats_server_performance.log

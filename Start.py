@@ -27,7 +27,7 @@ from config import AUTO_REPLY, COOKIES_LIST
 import cookie_manager as cm
 from db_manager import db_manager
 from file_log_collector import setup_file_logging
-from usage_statistics import report_user_count
+from usage_statistics import report_user_count, track_event
 
 
 def _start_api_server():
@@ -146,7 +146,21 @@ async def main():
 
     # 上报用户统计
     try:
+        # 获取API配置用于统计
+        api_conf = AUTO_REPLY.get('api', {})
+        api_host = os.getenv('API_HOST', api_conf.get('host', '0.0.0.0'))
+        api_port = int(os.getenv('API_PORT', str(api_conf.get('port', 8080))))
+
+        # 追踪系统启动事件
+        track_event("system_startup", {
+            "cookie_count": len(manager.list_cookies()),
+            "api_host": api_host,
+            "api_port": api_port
+        })
+
+        # 上报统计数据
         await report_user_count()
+        logger.info("✅ 用户统计上报完成")
     except Exception as e:
         logger.debug(f"上报用户统计失败: {e}")
 

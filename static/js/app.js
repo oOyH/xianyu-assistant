@@ -10473,23 +10473,13 @@ async function loadProjectUsers() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        // 使用协议适配的URL，解决Mixed Content问题
-        const apiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
+        // 使用后端代理端点，已迁移到新统计服务
+        const apiUrl = '/api/external/stats';
 
         console.log('统计请求详情:', {
-            protocol: window.location.protocol,
-            origin: location.origin,
-            apiBase: apiBase,
-            originalUrl: 'http://xianyu.zhinianblog.cn/?action=stats',
-            adaptedUrl: apiUrl,
-            finalUrl: apiUrl.startsWith('/') ? apiBase + apiUrl : apiUrl,
-            isHttps: window.location.protocol === 'https:'
+            apiUrl: apiUrl,
+            finalUrl: apiBase + apiUrl
         });
-
-        // 检查URL是否有效
-        if (!apiUrl) {
-            throw new Error('无法获取有效的API URL');
-        }
 
         const response = await fetch(apiUrl, {
             signal: controller.signal,
@@ -10574,13 +10564,8 @@ function startProjectUsersRefresh() {
  */
 async function showProjectStats() {
     try {
-        // 使用协议适配的URL，解决Mixed Content问题
-        const statsApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/?action=stats');
-
-        // 检查URL是否有效
-        if (!statsApiUrl) {
-            throw new Error('无法获取有效的API URL');
-        }
+        // 使用后端代理端点，已迁移到新统计服务
+        const statsApiUrl = '/api/external/stats';
 
         const response = await fetch(statsApiUrl);
         const data = await response.json();
@@ -11561,14 +11546,8 @@ async function loadSystemVersion() {
         document.getElementById('versionNumber').textContent = currentSystemVersion;
 
         // 获取远程版本并检查更新
-        // 使用协议适配的URL，解决Mixed Content问题
-        const versionApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getVersion');
-
-        // 检查URL是否有效
-        if (!versionApiUrl) {
-            console.log('无法获取版本检查API URL，使用本地版本');
-            return;
-        }
+        // 使用后端代理端点，已迁移到新统计服务
+        const versionApiUrl = '/api/external/version';
 
         const response = await fetch(versionApiUrl);
         const result = await response.json();
@@ -11627,14 +11606,8 @@ function showUpdateAvailable(newVersion) {
  */
 async function getUpdateInfo() {
     try {
-        // 使用协议适配的URL，解决Mixed Content问题
-        const updateApiUrl = getProtocolAdaptedUrl('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo');
-
-        // 检查URL是否有效
-        if (!updateApiUrl) {
-            console.log('无法获取更新信息API URL');
-            return null;
-        }
+        // 使用后端代理端点，已迁移到新统计服务
+        const updateApiUrl = '/api/external/update-info';
 
         const response = await fetch(updateApiUrl);
         const result = await response.json();

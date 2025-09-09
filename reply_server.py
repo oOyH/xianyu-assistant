@@ -27,6 +27,7 @@ from ai_reply_engine import ai_reply_engine
 from utils.qr_login import qr_login_manager
 from utils.xianyu_utils import trans_cookies
 from utils.image_utils import image_manager
+from usage_statistics import usage_stats, report_user_count, track_event, track_feature_usage
 from loguru import logger
 
 # 关键字文件路径
@@ -492,59 +493,85 @@ async def health_check():
 
 @app.get('/api/external/stats')
 async def proxy_stats():
-    """代理外部统计 API 请求，解决 Mixed Content 问题"""
+    """代理新统计服务 API 请求"""
     try:
         timeout = aiohttp.ClientTimeout(total=10)
+        headers = {
+            'Authorization': 'Bearer 8f89b531ef1d7f53f9cf43590f675b33',
+            'Content-Type': 'application/json'
+        }
+
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get('http://xianyu.zhinianblog.cn/?action=stats') as response:
+            async with session.get('https://stats.ivy.dpdns.org/api/v1/stats/summary', headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data
+
+                    # 数据格式适配，保持与前端兼容
+                    adapted_data = {
+                        'total_users': data.get('total_users', 0),
+                        'daily_active_users': data.get('active_users_today', 0),  # 字段名适配
+                        'os_distribution': data.get('os_distribution', {}),
+                        'version_distribution': data.get('version_distribution', {}),
+                        'last_updated': data.get('last_updated', '')
+                    }
+
+                    return adapted_data
                 else:
-                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
+                    raise HTTPException(status_code=response.status, detail="新统计服务请求失败")
     except asyncio.TimeoutError:
         raise HTTPException(status_code=408, detail="请求超时")
     except Exception as e:
-        logger.error(f"代理统计 API 失败: {e}")
+        logger.error(f"代理新统计服务失败: {e}")
         raise HTTPException(status_code=500, detail="代理请求失败")
 
 
 @app.get('/api/external/version')
 async def proxy_version():
-    """代理外部版本检查 API 请求"""
+    """返回系统版本信息（静态配置，已迁移到新统计服务）"""
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get('http://xianyu.zhinianblog.cn/index.php?action=getVersion') as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=408, detail="请求超时")
+        # 返回静态的版本信息，使用日期版本号
+        version_info = {
+            "error": False,
+            "data": "2025.9.9",
+            "message": "获取版本号成功"
+        }
+
+        return version_info
+
     except Exception as e:
-        logger.error(f"代理版本 API 失败: {e}")
-        raise HTTPException(status_code=500, detail="代理请求失败")
+        logger.error(f"获取版本信息失败: {e}")
+        raise HTTPException(status_code=500, detail="获取版本信息失败")
 
 
 @app.get('/api/external/update-info')
 async def proxy_update_info():
-    """代理外部更新信息 API 请求"""
+    """返回系统更新信息（静态配置，已迁移到新统计服务）"""
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get('http://xianyu.zhinianblog.cn/index.php?action=getUpdateInfo') as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    raise HTTPException(status_code=response.status, detail="外部 API 请求失败")
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=408, detail="请求超时")
+        # 返回静态的更新信息，使用日期版本号
+        update_info = {
+            "error": False,
+            "data": {
+                "version": "2025.9.9",
+                "updates": [
+                    "🎉1.完成统计服务迁移，提升系统稳定性和性能；",
+                    "🎉2.优化数据统计准确性，支持更详细的用户行为分析；",
+                    "🎉3.增强API认证安全性，使用Bearer Token认证；",
+                    "🎉4.保持所有原有功能完整性，无缝升级体验；",
+                    "🎉5.优化前端统计数据显示，提升用户体验；",
+                    "🎉6.修复网络请求跨域问题，提升系统兼容性；",
+                    "<br/>🎉 系统已升级到新的统计服务架构，享受更稳定的服务体验！"
+                ],
+                "releaseDate": "2025-09-09",
+                "updateTime": "2025-09-09 21:30:00"
+            },
+            "message": "获取更新内容成功"
+        }
+
+        return update_info
+
     except Exception as e:
-        logger.error(f"代理更新信息 API 失败: {e}")
-        raise HTTPException(status_code=500, detail="代理请求失败")
+        logger.error(f"获取更新信息失败: {e}")
+        raise HTTPException(status_code=500, detail="获取更新信息失败")
 
 
 # 重定向根路径到登录页面
@@ -671,6 +698,16 @@ async def login(request: LoginRequest):
                     logger.info(f"【{user['username']}#{user['id']}】登录成功（管理员）")
                 else:
                     logger.info(f"【{user['username']}#{user['id']}】登录成功")
+
+                # 追踪登录事件
+                try:
+                    track_event("user_login", {
+                        "user_type": "admin" if user['username'] == ADMIN_USERNAME else "user",
+                        "user_id": user['id']
+                    })
+                    track_feature_usage("web_login")
+                except Exception as e:
+                    logger.debug(f"统计追踪失败: {e}")
 
                 return LoginResponse(
                     success=True,
